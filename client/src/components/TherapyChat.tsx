@@ -5,13 +5,14 @@ import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { TherapistCharacter } from './TherapistCharacter';
 import { ChatMessage } from './ChatMessage';
-import { VoiceInput } from './VoiceInput';
+import { EnhancedVoiceInput } from './EnhancedVoiceInput';
 import { TherapySettings } from './TherapySettings';
 import { AudioVisualizationToggle } from './AudioVisualizationToggle';
 import { useSpeechSynthesis } from './SpeechSynthesis';
 import { useAudioVisualization } from '@/hooks/useAudioVisualization';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
+import { generateTherapyResponse } from '@/lib/openai';
 
 interface Message {
   id: string;
@@ -139,35 +140,54 @@ export const TherapyChat: React.FC = () => {
     setMessages(prev => [...prev, userMessage]);
     setInputText('');
     setIsTyping(true);
+    setCharacterMood('thinking');
 
-    // Simulate AI thinking time
-    await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 2000));
+    try {
+      // Generate AI response using OpenAI or fallback
+      const response = await generateTherapyResponse(
+        text.trim(), 
+        messages,
+        settings.therapistPersonality
+      );
+      
+      const aiMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        text: response.text,
+        isUser: false,
+        timestamp: new Date()
+      };
 
-    const aiResponse = generateAIResponse(text);
-    const aiMessage: Message = {
-      id: (Date.now() + 1).toString(),
-      text: aiResponse,
-      isUser: false,
-      timestamp: new Date()
-    };
+      setMessages(prev => [...prev, aiMessage]);
+      setIsTyping(false);
+      setCharacterMood(response.mood);
 
-    setMessages(prev => [...prev, aiMessage]);
-    setIsTyping(false);
+      // Speak the response if voice is enabled
+      if (settings.voiceEnabled) {
+        setCharacterMood('speaking');
+        setTimeout(() => speak(response.text), 500);
+      }
+    } catch (error) {
+      console.error('Error generating response:', error);
+      
+      // Fallback response on error
+      const fallbackMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        text: "I'm here to listen and support you. Could you share a bit more about what's on your mind?",
+        isUser: false,
+        timestamp: new Date()
+      };
 
-    // Speak the response if voice is enabled
-    if (settings.voiceEnabled) {
-      setTimeout(() => speak(aiResponse), 500);
+      setMessages(prev => [...prev, fallbackMessage]);
+      setIsTyping(false);
+      setCharacterMood('idle');
+
+      toast({
+        title: "Connection Issue",
+        description: "Having trouble connecting. Using basic responses for now.",
+        variant: "destructive",
+      });
     }
-
-    // Update character mood based on message content
-    if (text.toLowerCase().includes('happy') || text.toLowerCase().includes('good') || text.toLowerCase().includes('great')) {
-      setCharacterMood('happy');
-      setTimeout(() => setCharacterMood('idle'), 3000);
-    } else if (text.toLowerCase().includes('sad') || text.toLowerCase().includes('worried') || text.toLowerCase().includes('anxious')) {
-      setCharacterMood('concerned');
-      setTimeout(() => setCharacterMood('idle'), 3000);
-    }
-  }, [generateAIResponse, settings.voiceEnabled, speak]);
+  }, [generateTherapyResponse, settings.voiceEnabled, settings.therapistPersonality, speak, messages, toast]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -291,11 +311,12 @@ export const TherapyChat: React.FC = () => {
                 aria-label="Type your message"
               />
               
-              <VoiceInput
+              <EnhancedVoiceInput
                 onTranscript={handleVoiceTranscript}
                 onStartListening={() => setIsListening(true)}
                 onStopListening={() => setIsListening(false)}
                 disabled={isTyping}
+                useWhisper={false}
               />
               
               <Button

@@ -61,9 +61,17 @@ Preferred communication style: Simple, everyday language.
 4. **Audio Output**: Optional text-to-speech synthesis of responses
 5. **Visual Feedback**: Character animations and audio visualizations enhance experience
 
+### Recent Updates (Migration Complete)
+- Successfully migrated from Lovable to Replit environment
+- Converted routing from React Router to Wouter for Replit compatibility  
+- Added enhanced voice input with both browser Speech API and optional OpenAI Whisper support
+- Implemented OpenAI integration for intelligent therapy responses with fallback to rule-based responses
+- Fixed all import paths and module resolution for Replit environment
+- Application now running successfully on port 5000
+
 ### Current Limitations
 - Backend currently uses in-memory storage (MemStorage class)
-- No actual AI/LLM integration implemented yet
+- OpenAI API integration requires user to provide OPENAI_API_KEY for enhanced responses
 - Authentication system defined but not implemented
 
 ## External Dependencies
