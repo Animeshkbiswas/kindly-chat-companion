@@ -10,6 +10,7 @@ interface EnhancedVoiceInputProps {
   disabled?: boolean;
   useWhisper?: boolean;
   apiKey?: string;
+  language?: string;
 }
 
 class WhisperSpeechRecognition {
@@ -92,7 +93,8 @@ export const EnhancedVoiceInput: React.FC<EnhancedVoiceInputProps> = ({
   onStopListening,
   disabled = false,
   useWhisper = false,
-  apiKey
+  apiKey,
+  language = 'en-US'
 }) => {
   const [isListening, setIsListening] = useState(false);
   const [isSupported, setIsSupported] = useState(true);
@@ -119,7 +121,7 @@ export const EnhancedVoiceInput: React.FC<EnhancedVoiceInputProps> = ({
 
     recognition.continuous = true;
     recognition.interimResults = true;
-    recognition.lang = 'en-US';
+    recognition.lang = language;
 
     recognition.onstart = () => {
       setIsListening(true);
@@ -176,7 +178,7 @@ export const EnhancedVoiceInput: React.FC<EnhancedVoiceInputProps> = ({
     };
 
     return recognition;
-  }, [onTranscript, onStartListening, onStopListening, showError]);
+  }, [onTranscript, onStartListening, onStopListening, showError, language]);
 
   const startListening = useCallback(() => {
     if (disabled) return;

@@ -15,6 +15,7 @@ interface TherapySettingsProps {
     speechPitch: number;
     language: string;
     therapistPersonality: string;
+    audioVisualizationEnabled: boolean;
   };
   onSettingsChange: (settings: any) => void;
 }
@@ -25,7 +26,6 @@ export const TherapySettings: React.FC<TherapySettingsProps> = ({
 }) => {
   const handleSettingChange = (key: string, value: any) => {
     onSettingsChange({
-      ...settings,
       [key]: value
     });
   };
@@ -167,6 +167,32 @@ export const TherapySettings: React.FC<TherapySettingsProps> = ({
                 "Dr. Sarah will focus on encouragement and motivation."}
               {settings.therapistPersonality === 'analytical' && 
                 "Dr. Sarah will provide more analytical and thoughtful insights."}
+            </div>
+          </div>
+          
+          <Separator />
+          
+          {/* Audio Visualization */}
+          <div className="space-y-4">
+            <h3 className="text-sm font-medium text-foreground">
+              Audio Visualization
+            </h3>
+            
+            <div className="flex items-center justify-between">
+              <Label htmlFor="audio-viz-enabled" className="text-sm">
+                Enable real-time audio visualization
+              </Label>
+              <Switch
+                id="audio-viz-enabled"
+                checked={settings.audioVisualizationEnabled}
+                onCheckedChange={(checked) => handleSettingChange('audioVisualizationEnabled', checked)}
+              />
+            </div>
+            
+            <div className="text-xs text-muted-foreground">
+              {settings.audioVisualizationEnabled 
+                ? "Shows visual feedback while you speak and listen."
+                : "Audio visualization is disabled for better performance."}
             </div>
           </div>
         </div>

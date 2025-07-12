@@ -13,6 +13,7 @@ import { useAudioVisualization } from '@/hooks/useAudioVisualization';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { generateTherapyResponse } from '@/lib/openai';
+import { useSettings } from '@/hooks/useSettings';
 
 interface Message {
   id: string;
@@ -37,13 +38,7 @@ export const TherapyChat: React.FC = () => {
   const [isTyping, setIsTyping] = useState(false);
   const [characterMood, setCharacterMood] = useState<CharacterMood>('idle');
   const [isListening, setIsListening] = useState(false);
-  const [settings, setSettings] = useState({
-    voiceEnabled: true,
-    speechRate: 0.9,
-    speechPitch: 1.1,
-    language: 'en-US',
-    therapistPersonality: 'warm'
-  });
+  const { settings, updateSettings } = useSettings();
 
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -83,48 +78,57 @@ export const TherapyChat: React.FC = () => {
   }, [messages, isTyping]);
 
 
-  // Generate AI response (simulated)
-  const generateAIResponse = useCallback((userMessage: string): string => {
-    const responses = {
-      warm: [
-        "I hear you, and I want you to know that what you're feeling is completely valid. Can you tell me more about what's been weighing on your mind?",
-        "Thank you for sharing that with me. It takes courage to open up. How has this been affecting your daily life?",
-        "I'm here with you through this. What do you think might help you feel more supported right now?",
-        "Your feelings are important, and I'm grateful you trust me with them. What would you like to explore together?",
-        "That sounds really challenging. You're not alone in feeling this way. What resources or support do you have in your life?"
-      ],
-      professional: [
-        "I understand. Let's examine this situation more closely. What specific aspects concern you most?",
-        "Can you identify any patterns or triggers related to what you've described?",
-        "From a therapeutic perspective, what coping strategies have you tried before?",
-        "Let's work together to develop some concrete steps forward. What are your primary goals?",
-        "What evidence do you have that supports or challenges these thoughts you're experiencing?"
-      ],
-      gentle: [
-        "Take your time. There's no rush here. How would you like to begin exploring this?",
-        "I can sense this is difficult to talk about. We can go at whatever pace feels comfortable for you.",
-        "Your experience matters deeply. What feels most important for you to share right now?",
-        "It's okay to feel uncertain. What small step forward might feel manageable today?",
-        "You're being so brave by being here. What would feel most helpful for you in this moment?"
-      ],
-      encouraging: [
-        "You've already taken an important step by reaching out. What strengths do you see in yourself?",
-        "I believe in your ability to work through this. What progress have you made recently?",
-        "You have more resilience than you might realize. How have you overcome challenges before?",
-        "This conversation shows your commitment to growth. What motivates you to keep moving forward?",
-        "You're capable of positive change. What would that change look like for you?"
-      ],
-      analytical: [
-        "Let's break this down systematically. What are the key components of this situation?",
-        "I'm noticing some interesting themes in what you've shared. How do these connect for you?",
-        "From a cognitive perspective, what thoughts seem to be driving these feelings?",
-        "What underlying beliefs might be influencing your current experience?",
-        "Let's examine the relationship between your thoughts, feelings, and behaviors here."
-      ]
-    };
+  // Generate AI response with personality-aware responses
+  const generateAIResponse = useCallback(async (userMessage: string): Promise<string> => {
+    try {
+      // Try to use OpenAI first if available
+      const aiResponse = await generateTherapyResponse(userMessage, [], settings.therapistPersonality);
+      return aiResponse;
+    } catch (error) {
+      console.log('OpenAI not available, using fallback responses');
+      
+      // Fallback personality-based responses
+      const responses = {
+        warm: [
+          "I hear you, and I want you to know that what you're feeling is completely valid. Can you tell me more about what's been weighing on your mind?",
+          "Thank you for sharing that with me. It takes courage to open up. How has this been affecting your daily life?",
+          "I'm here with you through this. What do you think might help you feel more supported right now?",
+          "Your feelings are important, and I'm grateful you trust me with them. What would you like to explore together?",
+          "That sounds really challenging. You're not alone in feeling this way. What resources or support do you have in your life?"
+        ],
+        professional: [
+          "I understand. Let's examine this situation more closely. What specific aspects concern you most?",
+          "Can you identify any patterns or triggers related to what you've described?",
+          "From a therapeutic perspective, what coping strategies have you tried before?",
+          "Let's work together to develop some concrete steps forward. What are your primary goals?",
+          "What evidence do you have that supports or challenges these thoughts you're experiencing?"
+        ],
+        gentle: [
+          "Take your time. There's no rush here. How would you like to begin exploring this?",
+          "I can sense this is difficult to talk about. We can go at whatever pace feels comfortable for you.",
+          "Your experience matters deeply. What feels most important for you to share right now?",
+          "It's okay to feel uncertain. What small step forward might feel manageable today?",
+          "You're being so brave by being here. What would feel most helpful for you in this moment?"
+        ],
+        encouraging: [
+          "You've already taken an important step by reaching out. What strengths do you see in yourself?",
+          "I believe in your ability to work through this. What progress have you made recently?",
+          "You have more resilience than you might realize. How have you overcome challenges before?",
+          "This conversation shows your commitment to growth. What motivates you to keep moving forward?",
+          "You're capable of positive change. What would that change look like for you?"
+        ],
+        analytical: [
+          "Let's break this down systematically. What are the key components of this situation?",
+          "I'm noticing some interesting themes in what you've shared. How do these connect for you?",
+          "From a cognitive perspective, what thoughts seem to be driving these feelings?",
+          "What underlying beliefs might be influencing your current experience?",
+          "Let's examine the relationship between your thoughts, feelings, and behaviors here."
+        ]
+      };
 
-    const personalityResponses = responses[settings.therapistPersonality as keyof typeof responses] || responses.warm;
-    return personalityResponses[Math.floor(Math.random() * personalityResponses.length)];
+      const personalityResponses = responses[settings.therapistPersonality as keyof typeof responses] || responses.warm;
+      return personalityResponses[Math.floor(Math.random() * personalityResponses.length)];
+    }
   }, [settings.therapistPersonality]);
 
   const sendMessage = useCallback(async (text: string) => {
@@ -143,28 +147,31 @@ export const TherapyChat: React.FC = () => {
     setCharacterMood('thinking');
 
     try {
-      // Generate AI response using OpenAI or fallback
-      const response = await generateTherapyResponse(
-        text.trim(), 
-        messages,
-        settings.therapistPersonality
-      );
+      // Generate AI response using enhanced function
+      const responseText = await generateAIResponse(text.trim());
       
       const aiMessage: Message = {
         id: (Date.now() + 1).toString(),
-        text: response.text,
+        text: responseText,
         isUser: false,
         timestamp: new Date()
       };
 
       setMessages(prev => [...prev, aiMessage]);
       setIsTyping(false);
-      setCharacterMood(response.mood);
+      setCharacterMood('idle');
 
-      // Speak the response if voice is enabled
+      // Speak the response if voice is enabled with user settings
       if (settings.voiceEnabled) {
         setCharacterMood('speaking');
-        setTimeout(() => speak(response.text), 500);
+        setTimeout(() => {
+          speak(responseText, {
+            rate: settings.speechRate,
+            pitch: settings.speechPitch,
+            language: settings.language,
+            voiceEnabled: settings.voiceEnabled
+          });
+        }, 500);
       }
     } catch (error) {
       console.error('Error generating response:', error);
@@ -187,7 +194,7 @@ export const TherapyChat: React.FC = () => {
         variant: "destructive",
       });
     }
-  }, [generateTherapyResponse, settings.voiceEnabled, settings.therapistPersonality, speak, messages, toast]);
+  }, [generateAIResponse, settings, speak, messages, toast]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -218,12 +225,19 @@ export const TherapyChat: React.FC = () => {
     });
   };
 
-  const handleAudioVisualizationToggle = () => {
-    if (isAudioVisualizationEnabled) {
-      stopAudioVisualization();
-    } else {
+  // Sync audio visualization with settings
+  useEffect(() => {
+    if (settings.audioVisualizationEnabled && !isAudioVisualizationEnabled) {
       startAudioVisualization();
+    } else if (!settings.audioVisualizationEnabled && isAudioVisualizationEnabled) {
+      stopAudioVisualization();
     }
+  }, [settings.audioVisualizationEnabled, isAudioVisualizationEnabled, startAudioVisualization, stopAudioVisualization]);
+
+  const handleAudioVisualizationToggle = () => {
+    updateSettings({
+      audioVisualizationEnabled: !settings.audioVisualizationEnabled
+    });
   };
 
   return (
@@ -250,7 +264,7 @@ export const TherapyChat: React.FC = () => {
         <div className="flex gap-2 flex-wrap justify-center">
           <TherapySettings
             settings={settings}
-            onSettingsChange={setSettings}
+            onSettingsChange={updateSettings}
           />
           <AudioVisualizationToggle
             isEnabled={isAudioVisualizationEnabled}
@@ -317,6 +331,7 @@ export const TherapyChat: React.FC = () => {
                 onStopListening={() => setIsListening(false)}
                 disabled={isTyping}
                 useWhisper={false}
+                language={settings.language}
               />
               
               <Button

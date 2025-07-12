@@ -2,10 +2,17 @@ import { useCallback, useRef, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 
 interface SpeechSynthesisHook {
-  speak: (text: string) => void;
+  speak: (text: string, settings?: SpeechSettings) => void;
   stop: () => void;
   isSpeaking: boolean;
   isSupported: boolean;
+}
+
+interface SpeechSettings {
+  rate?: number;
+  pitch?: number;
+  language?: string;
+  voiceEnabled?: boolean;
 }
 
 export const useSpeechSynthesis = (): SpeechSynthesisHook => {
@@ -15,7 +22,7 @@ export const useSpeechSynthesis = (): SpeechSynthesisHook => {
   const isSupported = 'speechSynthesis' in window;
   const isSpeaking = isSupported && speechSynthesis.speaking;
 
-  const speak = useCallback((text: string) => {
+  const speak = useCallback((text: string, settings: SpeechSettings = {}) => {
     if (!isSupported) {
       toast({
         title: "Speech Not Supported",
@@ -25,36 +32,54 @@ export const useSpeechSynthesis = (): SpeechSynthesisHook => {
       return;
     }
 
+    // Check if voice is disabled
+    if (settings.voiceEnabled === false) {
+      return;
+    }
+
     // Stop any ongoing speech gracefully
     if (speechSynthesis.speaking) {
       speechSynthesis.cancel();
       // Small delay to ensure previous utterance is fully stopped
       setTimeout(() => {
-        startSpeech(text);
+        startSpeech(text, settings);
       }, 100);
     } else {
-      startSpeech(text);
+      startSpeech(text, settings);
     }
   }, [isSupported, toast]);
 
-  const startSpeech = useCallback((text: string) => {
+  const startSpeech = useCallback((text: string, settings: SpeechSettings = {}) => {
     const utterance = new SpeechSynthesisUtterance(text);
     
-    // Configure voice settings for a warm, calming effect
-    utterance.rate = 0.9; // Slightly slower for calm delivery
-    utterance.pitch = 1.1; // Slightly higher pitch for friendliness
-    utterance.volume = 0.8; // Comfortable volume
+    // Apply user settings or defaults
+    utterance.rate = settings.rate || 0.9;
+    utterance.pitch = settings.pitch || 1.1;
+    utterance.volume = 0.8; // Keep comfortable volume
     
-    // Try to select a female voice for warmth
+    // Select voice based on language preference
     const voices = speechSynthesis.getVoices();
-    const preferredVoice = voices.find(voice => 
-      voice.lang.startsWith('en') && 
+    const targetLanguage = settings.language || 'en-US';
+    const languageCode = targetLanguage.split('-')[0];
+    
+    // Find the best voice for the selected language
+    let preferredVoice = voices.find(voice => 
+      voice.lang === targetLanguage && 
       (voice.name.toLowerCase().includes('female') || 
        voice.name.toLowerCase().includes('woman') ||
        voice.name.toLowerCase().includes('sarah') ||
-       voice.name.toLowerCase().includes('samantha') ||
-       voice.name.toLowerCase().includes('alex'))
-    ) || voices.find(voice => voice.lang.startsWith('en') && voice.default);
+       voice.name.toLowerCase().includes('samantha'))
+    );
+    
+    // Fallback to any voice in the language
+    if (!preferredVoice) {
+      preferredVoice = voices.find(voice => voice.lang.startsWith(languageCode));
+    }
+    
+    // Final fallback to default voice
+    if (!preferredVoice) {
+      preferredVoice = voices.find(voice => voice.default);
+    }
     
     if (preferredVoice) {
       utterance.voice = preferredVoice;

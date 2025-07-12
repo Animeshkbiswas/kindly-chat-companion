@@ -15,7 +15,7 @@ export async function generateTherapyResponse(
   userMessage: string,
   conversationHistory: { text: string; isUser: boolean }[] = [],
   personality: string = 'warm'
-): Promise<TherapyResponse> {
+): Promise<string> {
   // Check if OpenAI API key is available
   const apiKey = import.meta.env.VITE_OPENAI_API_KEY;
   
@@ -83,13 +83,7 @@ Remember: You are not a replacement for professional therapy, but a supportive c
     const data = await response.json();
     const responseText = data.choices[0]?.message?.content || '';
 
-    // Determine mood based on response content
-    const mood = determineMoodFromResponse(responseText, userMessage);
-
-    return {
-      text: responseText,
-      mood
-    };
+    return responseText;
 
   } catch (error) {
     console.error('OpenAI API error:', error);
@@ -98,7 +92,7 @@ Remember: You are not a replacement for professional therapy, but a supportive c
   }
 }
 
-function generateFallbackResponse(userMessage: string, personality: string): TherapyResponse {
+function generateFallbackResponse(userMessage: string, personality: string): string {
   const message = userMessage.toLowerCase();
   
   // Emotion detection patterns
@@ -179,10 +173,7 @@ function generateFallbackResponse(userMessage: string, personality: string): The
   const categoryResponses = responseCategory[detectedEmotion as keyof typeof responseCategory] || responseCategory.neutral;
   const randomResponse = categoryResponses[Math.floor(Math.random() * categoryResponses.length)];
 
-  return {
-    text: randomResponse,
-    mood
-  };
+  return randomResponse;
 }
 
 function determineMoodFromResponse(responseText: string, userMessage: string): 'idle' | 'listening' | 'speaking' | 'thinking' | 'happy' | 'concerned' {
