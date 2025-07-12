@@ -10,7 +10,7 @@ from fastapi.responses import FileResponse
 import os
 from pathlib import Path
 
-from routers import auth, sessions, messages, settings, audio, reports
+from routers import auth, sessions, messages, settings as settings_router, audio, reports
 from core.config import get_settings
 from models.database import init_db
 
@@ -44,7 +44,7 @@ app.add_middleware(
 app.include_router(auth.router, prefix="/api/auth", tags=["authentication"])
 app.include_router(sessions.router, prefix="/api/sessions", tags=["therapy-sessions"])
 app.include_router(messages.router, prefix="/api/messages", tags=["chat-messages"])
-app.include_router(settings.router, prefix="/api/settings", tags=["user-settings"])
+app.include_router(settings_router.router, prefix="/api/settings", tags=["user-settings"])
 app.include_router(audio.router, prefix="/api/audio", tags=["audio-processing"])
 app.include_router(reports.router, prefix="/api/reports", tags=["reports"])
 

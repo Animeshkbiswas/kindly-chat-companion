@@ -38,14 +38,14 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
       <div className="flex-1 space-y-1">
         <div className={cn(
           'text-sm font-medium',
-          isUser ? 'text-primary-foreground/90' : 'text-primary'
+          isUser ? 'text-primary-foreground/90 user-message-name' : 'text-primary'
         )}>
           {isUser ? 'You' : 'Dr. Sarah'}
         </div>
         
         <div className={cn(
           'text-sm leading-relaxed',
-          isUser ? 'text-primary-foreground' : 'text-foreground'
+          isUser ? 'text-primary-foreground user-message-content' : 'text-foreground'
         )}>
           {isTyping ? (
             <div className="flex items-center gap-1">
