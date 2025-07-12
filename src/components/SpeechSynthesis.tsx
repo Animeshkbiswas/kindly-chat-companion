@@ -1,0 +1,87 @@
+import { useCallback, useRef, useEffect } from 'react';
+import { useToast } from '@/hooks/use-toast';
+
+interface SpeechSynthesisHook {
+  speak: (text: string) => void;
+  stop: () => void;
+  isSpeaking: boolean;
+  isSupported: boolean;
+}
+
+export const useSpeechSynthesis = (): SpeechSynthesisHook => {
+  const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
+  const { toast } = useToast();
+  
+  const isSupported = 'speechSynthesis' in window;
+  const isSpeaking = isSupported && speechSynthesis.speaking;
+
+  const speak = useCallback((text: string) => {
+    if (!isSupported) {
+      toast({
+        title: "Speech Not Supported",
+        description: "Your browser doesn't support text-to-speech.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Stop any ongoing speech
+    speechSynthesis.cancel();
+
+    const utterance = new SpeechSynthesisUtterance(text);
+    
+    // Configure voice settings for a warm, calming effect
+    utterance.rate = 0.9; // Slightly slower for calm delivery
+    utterance.pitch = 1.1; // Slightly higher pitch for friendliness
+    utterance.volume = 0.8; // Comfortable volume
+    
+    // Try to select a female voice for warmth
+    const voices = speechSynthesis.getVoices();
+    const preferredVoice = voices.find(voice => 
+      voice.lang.startsWith('en') && 
+      (voice.name.toLowerCase().includes('female') || 
+       voice.name.toLowerCase().includes('woman') ||
+       voice.name.toLowerCase().includes('sarah') ||
+       voice.name.toLowerCase().includes('samantha') ||
+       voice.name.toLowerCase().includes('alex'))
+    ) || voices.find(voice => voice.lang.startsWith('en') && voice.default);
+    
+    if (preferredVoice) {
+      utterance.voice = preferredVoice;
+    }
+
+    utterance.onerror = (event) => {
+      console.error('Speech synthesis error:', event.error);
+      toast({
+        title: "Speech Error",
+        description: "There was an issue with text-to-speech.",
+        variant: "destructive"
+      });
+    };
+
+    utteranceRef.current = utterance;
+    speechSynthesis.speak(utterance);
+  }, [isSupported, toast]);
+
+  const stop = useCallback(() => {
+    if (isSupported) {
+      speechSynthesis.cancel();
+    }
+  }, [isSupported]);
+
+  // Clean up on unmount
+  useEffect(() => {
+    return () => {
+      if (isSupported) {
+        speechSynthesis.cancel();
+      }
+    };
+  }, [isSupported]);
+
+  return {
+    speak,
+    stop,
+    isSpeaking,
+    isSupported
+  };
+};

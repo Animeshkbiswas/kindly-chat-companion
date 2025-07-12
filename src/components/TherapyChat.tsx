@@ -1,0 +1,291 @@
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { Send, Trash2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { TherapistCharacter } from './TherapistCharacter';
+import { ChatMessage } from './ChatMessage';
+import { VoiceInput } from './VoiceInput';
+import { TherapySettings } from './TherapySettings';
+import { useSpeechSynthesis } from './SpeechSynthesis';
+import { cn } from '@/lib/utils';
+import { useToast } from '@/hooks/use-toast';
+
+interface Message {
+  id: string;
+  text: string;
+  isUser: boolean;
+  timestamp: Date;
+}
+
+type CharacterMood = 'idle' | 'listening' | 'speaking' | 'thinking' | 'happy' | 'concerned';
+
+export const TherapyChat: React.FC = () => {
+  const [messages, setMessages] = useState<Message[]>([
+    {
+      id: '1',
+      text: "Hello! I'm Dr. Sarah, your virtual therapist. I'm here to listen and help you work through whatever is on your mind. How are you feeling today?",
+      isUser: false,
+      timestamp: new Date()
+    }
+  ]);
+  
+  const [inputText, setInputText] = useState('');
+  const [isTyping, setIsTyping] = useState(false);
+  const [characterMood, setCharacterMood] = useState<CharacterMood>('idle');
+  const [isListening, setIsListening] = useState(false);
+  const [settings, setSettings] = useState({
+    voiceEnabled: true,
+    speechRate: 0.9,
+    speechPitch: 1.1,
+    language: 'en-US',
+    therapistPersonality: 'warm'
+  });
+
+  const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const { speak, stop, isSpeaking } = useSpeechSynthesis();
+  const { toast } = useToast();
+
+  // Scroll to bottom when new messages arrive
+  useEffect(() => {
+    if (scrollAreaRef.current) {
+      const scrollContainer = scrollAreaRef.current.querySelector('[data-radix-scroll-area-viewport]');
+      if (scrollContainer) {
+        scrollContainer.scrollTop = scrollContainer.scrollHeight;
+      }
+    }
+  }, [messages, isTyping]);
+
+  // Update character mood based on speaking state
+  useEffect(() => {
+    if (isSpeaking) {
+      setCharacterMood('speaking');
+    } else if (isListening) {
+      setCharacterMood('listening');
+    } else if (isTyping) {
+      setCharacterMood('thinking');
+    } else {
+      setCharacterMood('idle');
+    }
+  }, [isSpeaking, isListening, isTyping]);
+
+  // Generate AI response (simulated)
+  const generateAIResponse = useCallback((userMessage: string): string => {
+    const responses = {
+      warm: [
+        "I hear you, and I want you to know that what you're feeling is completely valid. Can you tell me more about what's been weighing on your mind?",
+        "Thank you for sharing that with me. It takes courage to open up. How has this been affecting your daily life?",
+        "I'm here with you through this. What do you think might help you feel more supported right now?",
+        "Your feelings are important, and I'm grateful you trust me with them. What would you like to explore together?",
+        "That sounds really challenging. You're not alone in feeling this way. What resources or support do you have in your life?"
+      ],
+      professional: [
+        "I understand. Let's examine this situation more closely. What specific aspects concern you most?",
+        "Can you identify any patterns or triggers related to what you've described?",
+        "From a therapeutic perspective, what coping strategies have you tried before?",
+        "Let's work together to develop some concrete steps forward. What are your primary goals?",
+        "What evidence do you have that supports or challenges these thoughts you're experiencing?"
+      ],
+      gentle: [
+        "Take your time. There's no rush here. How would you like to begin exploring this?",
+        "I can sense this is difficult to talk about. We can go at whatever pace feels comfortable for you.",
+        "Your experience matters deeply. What feels most important for you to share right now?",
+        "It's okay to feel uncertain. What small step forward might feel manageable today?",
+        "You're being so brave by being here. What would feel most helpful for you in this moment?"
+      ],
+      encouraging: [
+        "You've already taken an important step by reaching out. What strengths do you see in yourself?",
+        "I believe in your ability to work through this. What progress have you made recently?",
+        "You have more resilience than you might realize. How have you overcome challenges before?",
+        "This conversation shows your commitment to growth. What motivates you to keep moving forward?",
+        "You're capable of positive change. What would that change look like for you?"
+      ],
+      analytical: [
+        "Let's break this down systematically. What are the key components of this situation?",
+        "I'm noticing some interesting themes in what you've shared. How do these connect for you?",
+        "From a cognitive perspective, what thoughts seem to be driving these feelings?",
+        "What underlying beliefs might be influencing your current experience?",
+        "Let's examine the relationship between your thoughts, feelings, and behaviors here."
+      ]
+    };
+
+    const personalityResponses = responses[settings.therapistPersonality as keyof typeof responses] || responses.warm;
+    return personalityResponses[Math.floor(Math.random() * personalityResponses.length)];
+  }, [settings.therapistPersonality]);
+
+  const sendMessage = useCallback(async (text: string) => {
+    if (!text.trim()) return;
+
+    const userMessage: Message = {
+      id: Date.now().toString(),
+      text: text.trim(),
+      isUser: true,
+      timestamp: new Date()
+    };
+
+    setMessages(prev => [...prev, userMessage]);
+    setInputText('');
+    setIsTyping(true);
+
+    // Simulate AI thinking time
+    await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 2000));
+
+    const aiResponse = generateAIResponse(text);
+    const aiMessage: Message = {
+      id: (Date.now() + 1).toString(),
+      text: aiResponse,
+      isUser: false,
+      timestamp: new Date()
+    };
+
+    setMessages(prev => [...prev, aiMessage]);
+    setIsTyping(false);
+
+    // Speak the response if voice is enabled
+    if (settings.voiceEnabled) {
+      setTimeout(() => speak(aiResponse), 500);
+    }
+
+    // Update character mood based on message content
+    if (text.toLowerCase().includes('happy') || text.toLowerCase().includes('good') || text.toLowerCase().includes('great')) {
+      setCharacterMood('happy');
+      setTimeout(() => setCharacterMood('idle'), 3000);
+    } else if (text.toLowerCase().includes('sad') || text.toLowerCase().includes('worried') || text.toLowerCase().includes('anxious')) {
+      setCharacterMood('concerned');
+      setTimeout(() => setCharacterMood('idle'), 3000);
+    }
+  }, [generateAIResponse, settings.voiceEnabled, speak]);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    sendMessage(inputText);
+  };
+
+  const handleVoiceTranscript = (transcript: string) => {
+    setInputText(transcript);
+    // Auto-send after a brief pause
+    setTimeout(() => {
+      if (transcript.trim()) {
+        sendMessage(transcript);
+      }
+    }, 1000);
+  };
+
+  const clearChat = () => {
+    setMessages([{
+      id: '1',
+      text: "Hello! I'm Dr. Sarah, your virtual therapist. I'm here to listen and help you work through whatever is on your mind. How are you feeling today?",
+      isUser: false,
+      timestamp: new Date()
+    }]);
+    stop(); // Stop any ongoing speech
+    toast({
+      title: "Chat Cleared",
+      description: "Starting fresh with a new conversation."
+    });
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-main flex flex-col lg:flex-row">
+      {/* Character Section */}
+      <div className="lg:w-1/3 flex flex-col items-center justify-center p-6 bg-gradient-to-b from-therapy-gentle/30 to-transparent">
+        <div className="text-center mb-6">
+          <h1 className="text-2xl font-bold text-primary mb-2">Dr. Sarah</h1>
+          <p className="text-muted-foreground">Your Virtual Therapist</p>
+        </div>
+        
+        <TherapistCharacter
+          mood={characterMood}
+          isListening={isListening}
+          isSpeaking={isSpeaking}
+          className="mb-6"
+        />
+        
+        <div className="flex gap-2">
+          <TherapySettings
+            settings={settings}
+            onSettingsChange={setSettings}
+          />
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={clearChat}
+            className="shadow-gentle hover:shadow-soft transition-all duration-300"
+            aria-label="Clear conversation"
+          >
+            <Trash2 className="w-4 h-4" />
+          </Button>
+        </div>
+      </div>
+
+      {/* Chat Section */}
+      <div className="lg:w-2/3 flex flex-col h-screen lg:h-auto">
+        {/* Chat Messages */}
+        <ScrollArea ref={scrollAreaRef} className="flex-1 p-4">
+          <div className="space-y-4 max-w-4xl mx-auto">
+            {messages.map((message) => (
+              <ChatMessage
+                key={message.id}
+                message={message.text}
+                isUser={message.isUser}
+                timestamp={message.timestamp}
+              />
+            ))}
+            
+            {isTyping && (
+              <ChatMessage
+                message=""
+                isUser={false}
+                isTyping={true}
+              />
+            )}
+          </div>
+        </ScrollArea>
+
+        {/* Input Section */}
+        <div className="p-4 bg-card/50 backdrop-blur-sm border-t">
+          <form onSubmit={handleSubmit} className="max-w-4xl mx-auto">
+            <div className="flex gap-2">
+              <Input
+                ref={inputRef}
+                value={inputText}
+                onChange={(e) => setInputText(e.target.value)}
+                placeholder="Share what's on your mind..."
+                disabled={isTyping}
+                className={cn(
+                  'flex-1 shadow-gentle focus:shadow-soft transition-all duration-300',
+                  'bg-background/80 backdrop-blur-sm'
+                )}
+                aria-label="Type your message"
+              />
+              
+              <VoiceInput
+                onTranscript={handleVoiceTranscript}
+                onStartListening={() => setIsListening(true)}
+                onStopListening={() => setIsListening(false)}
+                disabled={isTyping}
+              />
+              
+              <Button
+                type="submit"
+                disabled={!inputText.trim() || isTyping}
+                className={cn(
+                  'shadow-gentle hover:shadow-soft transition-all duration-300',
+                  'hover:scale-105'
+                )}
+                aria-label="Send message"
+              >
+                <Send className="w-4 h-4" />
+              </Button>
+            </div>
+          </form>
+          
+          <p className="text-xs text-muted-foreground text-center mt-2">
+            This is a simulated therapy experience for demonstration purposes.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+};
