@@ -5,6 +5,8 @@ interface TherapistCharacterProps {
   mood: 'idle' | 'listening' | 'speaking' | 'thinking' | 'happy' | 'concerned';
   isListening?: boolean;
   isSpeaking?: boolean;
+  audioLevel?: number;
+  audioIntensity?: 'low' | 'medium' | 'high';
   className?: string;
 }
 
@@ -12,6 +14,8 @@ export const TherapistCharacter: React.FC<TherapistCharacterProps> = ({
   mood = 'idle',
   isListening = false,
   isSpeaking = false,
+  audioLevel = 0,
+  audioIntensity = 'low',
   className
 }) => {
   const [shouldBlink, setShouldBlink] = useState(true);
@@ -73,10 +77,27 @@ export const TherapistCharacter: React.FC<TherapistCharacterProps> = ({
     }
   };
 
+  // Get breathing intensity based on audio level when listening
+  const getBreathingIntensity = () => {
+    if (isListening && audioLevel > 0) {
+      switch (audioIntensity) {
+        case 'high':
+          return 'animate-float'; // More pronounced movement
+        case 'medium':
+          return 'animate-breathe'; // Normal breathing
+        case 'low':
+          return 'animate-pulse-gentle'; // Subtle pulse
+        default:
+          return 'animate-breathe';
+      }
+    }
+    return 'animate-breathe';
+  };
+
   return (
     <div className={cn(
       'relative flex items-center justify-center',
-      'animate-breathe', // Gentle breathing animation
+      getBreathingIntensity(),
       className
     )}>
       <svg
@@ -86,7 +107,8 @@ export const TherapistCharacter: React.FC<TherapistCharacterProps> = ({
         className={cn(
           'drop-shadow-lg transition-all duration-300',
           mood === 'thinking' && 'animate-thinking',
-          mood === 'happy' && 'animate-float'
+          mood === 'happy' && 'animate-float',
+          isListening && audioLevel > 20 && 'animate-nod' // Subtle nod when user speaks
         )}
       >
         {/* Character background glow */}
@@ -312,6 +334,37 @@ export const TherapistCharacter: React.FC<TherapistCharacterProps> = ({
               d="M 36 100 Q 28 95 24 100 Q 28 105 36 100"
               fill="hsl(var(--primary))"
               opacity="0.4"
+            />
+          </g>
+        )}
+
+        {/* Real-time audio level visualization */}
+        {isListening && audioLevel > 15 && (
+          <g className="animate-pulse">
+            {/* Audio visualization bars */}
+            <rect
+              x="45"
+              y={95 - (audioLevel * 0.3)}
+              width="2"
+              height={audioLevel * 0.3}
+              fill="hsl(var(--primary))"
+              opacity="0.7"
+            />
+            <rect
+              x="48"
+              y={95 - (audioLevel * 0.4)}
+              width="2"
+              height={audioLevel * 0.4}
+              fill="hsl(var(--primary))"
+              opacity="0.6"
+            />
+            <rect
+              x="51"
+              y={95 - (audioLevel * 0.2)}
+              width="2"
+              height={audioLevel * 0.2}
+              fill="hsl(var(--primary))"
+              opacity="0.5"
             />
           </g>
         )}

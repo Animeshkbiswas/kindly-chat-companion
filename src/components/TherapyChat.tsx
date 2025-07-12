@@ -7,7 +7,9 @@ import { TherapistCharacter } from './TherapistCharacter';
 import { ChatMessage } from './ChatMessage';
 import { VoiceInput } from './VoiceInput';
 import { TherapySettings } from './TherapySettings';
+import { AudioVisualizationToggle } from './AudioVisualizationToggle';
 import { useSpeechSynthesis } from './SpeechSynthesis';
+import { useAudioVisualization } from '@/hooks/useAudioVisualization';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 
@@ -45,7 +47,29 @@ export const TherapyChat: React.FC = () => {
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const { speak, stop, isSpeaking } = useSpeechSynthesis();
+  const { 
+    audioData, 
+    isEnabled: isAudioVisualizationEnabled, 
+    isSupported: isAudioVisualizationSupported,
+    startAudioVisualization, 
+    stopAudioVisualization 
+  } = useAudioVisualization();
   const { toast } = useToast();
+
+  // Update character mood based on real-time audio
+  useEffect(() => {
+    if (audioData.isUserSpeaking && isAudioVisualizationEnabled) {
+      setCharacterMood('listening');
+    } else if (isSpeaking) {
+      setCharacterMood('speaking');
+    } else if (isListening) {
+      setCharacterMood('listening');
+    } else if (isTyping) {
+      setCharacterMood('thinking');
+    } else {
+      setCharacterMood('idle');
+    }
+  }, [isSpeaking, isListening, isTyping, audioData.isUserSpeaking, isAudioVisualizationEnabled]);
 
   // Scroll to bottom when new messages arrive
   useEffect(() => {
@@ -57,18 +81,6 @@ export const TherapyChat: React.FC = () => {
     }
   }, [messages, isTyping]);
 
-  // Update character mood based on speaking state
-  useEffect(() => {
-    if (isSpeaking) {
-      setCharacterMood('speaking');
-    } else if (isListening) {
-      setCharacterMood('listening');
-    } else if (isTyping) {
-      setCharacterMood('thinking');
-    } else {
-      setCharacterMood('idle');
-    }
-  }, [isSpeaking, isListening, isTyping]);
 
   // Generate AI response (simulated)
   const generateAIResponse = useCallback((userMessage: string): string => {
@@ -186,6 +198,14 @@ export const TherapyChat: React.FC = () => {
     });
   };
 
+  const handleAudioVisualizationToggle = () => {
+    if (isAudioVisualizationEnabled) {
+      stopAudioVisualization();
+    } else {
+      startAudioVisualization();
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-main flex flex-col lg:flex-row">
       {/* Character Section */}
@@ -193,19 +213,30 @@ export const TherapyChat: React.FC = () => {
         <div className="text-center mb-6">
           <h1 className="text-2xl font-bold text-primary mb-2">Dr. Sarah</h1>
           <p className="text-muted-foreground">Your Virtual Therapist</p>
+          {isAudioVisualizationEnabled && (
+            <p className="text-xs text-primary mt-1">Real-time audio enabled</p>
+          )}
         </div>
         
         <TherapistCharacter
           mood={characterMood}
-          isListening={isListening}
+          isListening={isListening || (isAudioVisualizationEnabled && audioData.isUserSpeaking)}
           isSpeaking={isSpeaking}
+          audioLevel={audioData.audioLevel}
+          audioIntensity={audioData.intensity}
           className="mb-6"
         />
         
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap justify-center">
           <TherapySettings
             settings={settings}
             onSettingsChange={setSettings}
+          />
+          <AudioVisualizationToggle
+            isEnabled={isAudioVisualizationEnabled}
+            isSupported={isAudioVisualizationSupported}
+            onToggle={handleAudioVisualizationToggle}
+            disabled={isTyping}
           />
           <Button
             variant="outline"
