@@ -25,9 +25,19 @@ export const useSpeechSynthesis = (): SpeechSynthesisHook => {
       return;
     }
 
-    // Stop any ongoing speech
-    speechSynthesis.cancel();
+    // Stop any ongoing speech gracefully
+    if (speechSynthesis.speaking) {
+      speechSynthesis.cancel();
+      // Small delay to ensure previous utterance is fully stopped
+      setTimeout(() => {
+        startSpeech(text);
+      }, 100);
+    } else {
+      startSpeech(text);
+    }
+  }, [isSupported, toast]);
 
+  const startSpeech = useCallback((text: string) => {
     const utterance = new SpeechSynthesisUtterance(text);
     
     // Configure voice settings for a warm, calming effect
@@ -51,17 +61,24 @@ export const useSpeechSynthesis = (): SpeechSynthesisHook => {
     }
 
     utterance.onerror = (event) => {
-      console.error('Speech synthesis error:', event.error);
-      toast({
-        title: "Speech Error",
-        description: "There was an issue with text-to-speech.",
-        variant: "destructive"
-      });
+      // Only log non-interrupted errors to avoid spam
+      if (event.error !== 'interrupted') {
+        console.error('Speech synthesis error:', event.error);
+        toast({
+          title: "Speech Error",
+          description: "There was an issue with text-to-speech.",
+          variant: "destructive"
+        });
+      }
+    };
+
+    utterance.onend = () => {
+      utteranceRef.current = null;
     };
 
     utteranceRef.current = utterance;
     speechSynthesis.speak(utterance);
-  }, [isSupported, toast]);
+  }, [toast]);
 
   const stop = useCallback(() => {
     if (isSupported) {

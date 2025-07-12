@@ -1,0 +1,638 @@
+Phase 1: Backend Modernization
+Convert Gradio to FastAPI
+
+python
+# New FastAPI backend structure
+from fastapi import FastAPI, HTTPException, UploadFile, File
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
+import asyncio
+from typing import Optional, Dict, Any
+
+app = FastAPI(title="AI Psychology Platform", version="1.0.0")
+
+# Add CORS middleware for React frontend
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000", "http://localhost:5173"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+class ChatMessage(BaseModel):
+    message: str
+    session_id: Optional[str] = None
+    therapist: str = "Sarah"
+    language: str = "en"
+
+class AudioRequest(BaseModel):
+    text: str
+    voice: str = "alloy"
+    
+@app.post("/api/chat")
+async def chat_endpoint(request: ChatMessage):
+    """Main chat endpoint replacing Gradio interface"""
+    # Implement existing settings.py logic
+    response = await get_ai_response(request)
+    return response
+
+@app.post("/api/audio/synthesize")
+async def synthesize_speech(request: AudioRequest):
+    """Convert text to speech"""
+    # Use existing TTS functionality
+    audio_buffer = await generate_speech(request.text, request.voice)
+    return StreamingResponse(audio_buffer, media_type="audio/mpeg")
+DeepSeek-V3 Integration
+
+python
+# Update ai_config.py for DeepSeek-V3
+from openai import OpenAI
+import os
+
+# DeepSeek-V3 configuration
+DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
+DEEPSEEK_BASE_URL = "https://api.deepseek.com"
+
+# Initialize DeepSeek client
+deepseek_client = OpenAI(
+    api_key=DEEPSEEK_API_KEY,
+    base_url=DEEPSEEK_BASE_URL
+)
+
+def get_ai_response(message: str, history: str, therapist: str = "Sarah"):
+    """Get response from DeepSeek-V3 model"""
+    response = deepseek_client.chat.completions.create(
+        model="deepseek-chat",  # DeepSeek-V3
+        messages=[
+            {"role": "system", "content": get_therapist_prompt(therapist)},
+            {"role": "user", "content": message}
+        ],
+        temperature=0.7,
+        max_tokens=500
+    )
+    return response.choices[0].message.content
+Phase 2: Frontend Enhancement
+API Integration Layer
+
+typescript
+// src/services/psychologyAPI.ts
+import axios from 'axios';
+
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+
+export interface ChatRequest {
+  message: string;
+  sessionId?: string;
+  therapist: string;
+  language: string;
+}
+
+export interface ChatResponse {
+  response: string;
+  sessionId: string;
+  questionNumber: number;
+  isComplete: boolean;
+  audioUrl?: string;
+}
+
+class PsychologyAPI {
+  private client = axios.create({
+    baseURL: API_BASE_URL,
+    timeout: 30000,
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  });
+
+  async sendMessage(request: ChatRequest): Promise<ChatResponse> {
+    const response = await this.client.post('/api/chat', request);
+    return response.data;
+  }
+
+  async transcribeAudio(audioBlob: Blob): Promise<string> {
+    const formData = new FormData();
+    formData.append('audio', audioBlob);
+    
+    const response = await this.client.post('/api/audio/transcribe', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data.text;
+  }
+
+  async synthesizeSpeech(text: string, voice: string = 'alloy'): Promise<string> {
+    const response = await this.client.post('/api/audio/synthesize', 
+      { text, voice }, 
+      { responseType: 'blob' }
+    );
+    return URL.createObjectURL(response.data);
+  }
+
+  async generateReport(sessionId: string): Promise<Blob> {
+    const response = await this.client.get(`/api/report/${sessionId}`, {
+      responseType: 'blob',
+    });
+    return response.data;
+  }
+}
+
+export const psychologyAPI = new PsychologyAPI();
+Enhanced Chat Component
+
+typescript
+// src/components/EnhancedTherapyChat.tsx
+import React, { useState, useEffect, useCallback } from 'react';
+import { psychologyAPI, ChatRequest, ChatResponse } from '../services/psychologyAPI';
+import { TherapistCharacter } from './TherapistCharacter';
+import { AudioVisualization } from './AudioVisualization';
+
+interface EnhancedTherapyChatProps {
+  therapist: 'Sarah' | 'Aaron';
+  language: string;
+}
+
+export const EnhancedTherapyChat: React.FC<EnhancedTherapyChatProps> = ({
+  therapist,
+  language
+}) => {
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [sessionId, setSessionId] = useState<string>('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [characterMood, setCharacterMood] = useState<CharacterMood>('idle');
+  const [questionNumber, setQuestionNumber] = useState(0);
+  const [isInterviewComplete, setIsInterviewComplete] = useState(false);
+
+  const sendMessage = useCallback(async (text: string) => {
+    setIsLoading(true);
+    setCharacterMood('thinking');
+
+    try {
+      const request: ChatRequest = {
+        message: text,
+        sessionId,
+        therapist,
+        language
+      };
+
+      const response: ChatResponse = await psychologyAPI.sendMessage(request);
+      
+      // Update session state
+      setSessionId(response.sessionId);
+      setQuestionNumber(response.questionNumber);
+      setIsInterviewComplete(response.isComplete);
+
+      // Add messages to chat
+      const userMessage: Message = {
+        id: Date.now().toString(),
+        text,
+        isUser: true,
+        timestamp: new Date()
+      };
+
+      const aiMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        text: response.response,
+        isUser: false,
+        timestamp: new Date(),
+        audioUrl: response.audioUrl
+      };
+
+      setMessages(prev => [...prev, userMessage, aiMessage]);
+
+      // Update character mood and play audio
+      setCharacterMood('speaking');
+      if (response.audioUrl) {
+        await playAudio(response.audioUrl);
+      }
+
+      // Handle interview completion
+      if (response.isComplete) {
+        await handleInterviewCompletion();
+      }
+
+    } catch (error) {
+      console.error('Error sending message:', error);
+      setCharacterMood('concerned');
+    } finally {
+      setIsLoading(false);
+      setCharacterMood('idle');
+    }
+  }, [sessionId, therapist, language]);
+
+  const handleInterviewCompletion = useCallback(async () => {
+    try {
+      const reportBlob = await psychologyAPI.generateReport(sessionId);
+      const url = URL.createObjectURL(reportBlob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `psychology_report_${sessionId}.pdf`;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Error generating report:', error);
+    }
+  }, [sessionId]);
+
+  return (
+    <div className="enhanced-therapy-chat">
+      <div className="character-section">
+        <TherapistCharacter
+          mood={characterMood}
+          therapist={therapist}
+          isListening={isLoading}
+          audioVisualization={true}
+        />
+        <div className="interview-progress">
+          <div className="progress-bar">
+            <div 
+              className="progress-fill"
+              style={{ width: `${(questionNumber / 25) * 100}%` }}
+            />
+          </div>
+          <span>Question {questionNumber} of 25</span>
+        </div>
+      </div>
+      
+      <div className="chat-section">
+        {/* Enhanced chat interface with psychology-specific features */}
+        <ChatHistory messages={messages} />
+        <ChatInput 
+          onSendMessage={sendMessage}
+          disabled={isLoading || isInterviewComplete}
+        />
+      </div>
+    </div>
+  );
+};
+Phase 3: Advanced Features Integration
+Real-time Audio Processing
+
+typescript
+// Enhanced audio processing with psychology backend
+class PsychologyAudioProcessor extends AudioStreamProcessor {
+  private psychologyAPI: PsychologyAPI;
+  private currentSession: string;
+
+  constructor(psychologyAPI: PsychologyAPI) {
+    super();
+    this.psychologyAPI = psychologyAPI;
+  }
+
+  async processAudioInput(audioBlob: Blob): Promise<string> {
+    try {
+      const transcript = await this.psychologyAPI.transcribeAudio(audioBlob);
+      return transcript;
+    } catch (error) {
+      console.error('Audio processing error:', error);
+      throw error;
+    }
+  }
+
+  async generateSpeechResponse(text: string, voice: string): Promise<string> {
+    return await this.psychologyAPI.synthesizeSpeech(text, voice);
+  }
+}
+Character Animation with AI Analysis
+
+typescript
+// Enhanced character with AI-driven mood detection
+export const AITherapistCharacter: React.FC<TherapistCharacterProps> = ({
+  mood,
+  therapist,
+  currentMessage,
+  audioLevel
+}) => {
+  const [analyzedMood, setAnalyzedMood] = useState<CharacterMood>('idle');
+  const [expressions, setExpressions] = useState<ExpressionData>({});
+
+  useEffect(() => {
+    // Analyze message sentiment for character mood
+    if (currentMessage) {
+      const detectedMood = analyzeSentiment(currentMessage);
+      setAnalyzedMood(detectedMood);
+    }
+  }, [currentMessage]);
+
+  const analyzeSentiment = (message: string): CharacterMood => {
+    // Simple sentiment analysis (can be enhanced with ML)
+    const positiveWords = ['happy', 'good', 'great', 'wonderful', 'excellent'];
+    const negativeWords = ['sad', 'bad', 'terrible', 'awful', 'worried', 'anxious'];
+    
+    const words = message.toLowerCase().split(' ');
+    const positiveCount = words.filter(word => positiveWords.includes(word)).length;
+    const negativeCount = words.filter(word => negativeWords.includes(word)).length;
+    
+    if (positiveCount > negativeCount) return 'happy';
+    if (negativeCount > positiveCount) return 'concerned';
+    return 'neutral';
+  };
+
+  return (
+    <div className="ai-therapist-character">
+      <SVGCharacter
+        mood={analyzedMood}
+        therapist={therapist}
+        audioLevel={audioLevel}
+        expressions={expressions}
+      />
+    </div>
+  );
+};
+Technical Implementation Details
+Backend Architecture
+FastAPI Server Structure
+
+python
+# main.py - FastAPI application entry point
+from fastapi import FastAPI, HTTPException, Depends
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+import uvicorn
+
+# Import existing modules
+from ai_config import load_model, convert_text_to_speech, transcribe_audio
+from settings import respond, generate_interview_report
+from knowledge_retrieval import setup_knowledge_retrieval
+from prompt_instructions import get_interview_prompt_sarah, get_interview_prompt_aaron
+
+app = FastAPI(title="AI Psychology Platform", version="1.0.0")
+
+# CORS configuration
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Configure appropriately for production
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Security
+security = HTTPBearer()
+
+# Mount static files for frontend
+from fastapi.staticfiles import StaticFiles
+app.mount("/static", StaticFiles(directory="frontend/dist"), name="static")
+
+# Include routers
+from routers import chat, audio, interview, reports
+app.include_router(chat.router, prefix="/api")
+app.include_router(audio.router, prefix="/api")
+app.include_router(interview.router, prefix="/api")
+app.include_router(reports.router, prefix="/api")
+
+if __name__ == "__main__":
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+Chat Router Implementation
+
+python
+# routers/chat.py
+from fastapi import APIRouter, HTTPException, Depends
+from pydantic import BaseModel
+from typing import Optional, Dict, Any
+import asyncio
+from datetime import datetime
+
+# Import existing psychology modules
+from settings import respond, interview_history, question_count
+from knowledge_retrieval import setup_knowledge_retrieval
+from ai_config import load_model, openai_api_key
+
+router = APIRouter()
+
+class ChatRequest(BaseModel):
+    message: str
+    session_id: Optional[str] = None
+    therapist: str = "Sarah"
+    language: str = "en"
+
+class ChatResponse(BaseModel):
+    response: str
+    session_id: str
+    question_number: int
+    is_complete: bool
+    audio_url: Optional[str] = None
+    character_mood: str = "neutral"
+
+# Session management
+sessions: Dict[str, Dict[str, Any]] = {}
+
+@router.post("/chat", response_model=ChatResponse)
+async def chat_endpoint(request: ChatRequest):
+    """Main chat endpoint for psychology interview"""
+    try:
+        # Initialize or get session
+        if request.session_id not in sessions:
+            sessions[request.session_id] = {
+                "history": [],
+                "question_count": 0,
+                "therapist": request.therapist,
+                "language": request.language,
+                "created_at": datetime.now()
+            }
+        
+        session = sessions[request.session_id]
+        
+        # Use existing logic from settings.py
+        response_text, audio_path = respond(
+            request.message,
+            session["history"],
+            "alloy" if request.therapist == "Sarah" else "onyx",
+            request.therapist
+        )
+        
+        # Update session
+        session["history"].append([request.message, response_text])
+        session["question_count"] += 1
+        
+        # Check if interview is complete
+        is_complete = session["question_count"] >= 25
+        
+        # Analyze character mood from message
+        character_mood = analyze_message_sentiment(request.message)
+        
+        return ChatResponse(
+            response=response_text,
+            session_id=request.session_id,
+            question_number=session["question_count"],
+            is_complete=is_complete,
+            audio_url=audio_path,
+            character_mood=character_mood
+        )
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+def analyze_message_sentiment(message: str) -> str:
+    """Analyze message sentiment for character mood"""
+    # Simple sentiment analysis (can be enhanced with ML models)
+    positive_words = ['happy', 'good', 'great', 'wonderful', 'excellent', 'fine']
+    negative_words = ['sad', 'bad', 'terrible', 'awful', 'worried', 'anxious', 'depressed']
+    
+    words = message.lower().split()
+    positive_count = sum(1 for word in words if word in positive_words)
+    negative_count = sum(1 for word in words if word in negative_words)
+    
+    if positive_count > negative_count:
+        return 'happy'
+    elif negative_count > positive_count:
+        return 'concerned'
+    else:
+        return 'neutral'
+Frontend Architecture
+API Client with Error Handling
+
+typescript
+// src/services/apiClient.ts
+import axios, { AxiosInstance, AxiosError } from 'axios';
+
+class APIClient {
+  private client: AxiosInstance;
+
+  constructor(baseURL: string) {
+    this.client = axios.create({
+      baseURL,
+      timeout: 30000,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    // Request interceptor
+    this.client.interceptors.request.use(
+      (config) => {
+        // Add auth token if available
+        const token = localStorage.getItem('auth_token');
+        if (token) {
+          config.headers.Authorization = `Bearer ${token}`;
+        }
+        return config;
+      },
+      (error) => Promise.reject(error)
+    );
+
+    // Response interceptor
+    this.client.interceptors.response.use(
+      (response) => response,
+      (error: AxiosError) => {
+        if (error.response?.status === 401) {
+          // Handle unauthorized access
+          localStorage.removeItem('auth_token');
+          window.location.href = '/login';
+        }
+        return Promise.reject(error);
+      }
+    );
+  }
+
+  async post<T>(endpoint: string, data: any): Promise<T> {
+    const response = await this.client.post(endpoint, data);
+    return response.data;
+  }
+
+  async get<T>(endpoint: string): Promise<T> {
+    const response = await this.client.get(endpoint);
+    return response.data;
+  }
+
+  async uploadFile<T>(endpoint: string, file: File): Promise<T> {
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    const response = await this.client.post(endpoint, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data;
+  }
+}
+
+export const apiClient = new APIClient(
+  process.env.REACT_APP_API_URL || 'http://localhost:8000/api'
+);
+Deployment Configuration
+Docker Setup
+
+text
+# Dockerfile for integrated application
+FROM python:3.11-slim as backend
+
+# Backend setup
+WORKDIR /app/backend
+COPY backend/requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY backend/ .
+
+# Frontend build stage
+FROM node:18-alpine as frontend
+
+WORKDIR /app/frontend
+COPY frontend/package*.json ./
+RUN npm ci --only=production
+
+COPY frontend/ .
+RUN npm run build
+
+# Final stage
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Copy backend
+COPY --from=backend /app/backend ./backend
+COPY --from=backend /usr/local/lib/python3.11/site-packages/ /usr/local/lib/python3.11/site-packages/
+
+# Copy frontend build
+COPY --from=frontend /app/frontend/dist ./frontend/dist
+
+# Environment variables
+ENV PYTHONPATH=/app/backend
+ENV DEEPSEEK_API_KEY=""
+ENV OPENAI_API_KEY=""
+
+# Expose port
+EXPOSE 8000
+
+# Start command
+CMD ["python", "backend/main.py"]
+docker-compose.yml
+
+text
+version: '3.8'
+
+services:
+  app:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - ENVIRONMENT=production
+    volumes:
+      - ./knowledge:/app/backend/knowledge
+      - ./appendix:/app/backend/appendix
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf
+      - ./ssl:/etc/nginx/ssl
+    depends_on:
+      - app
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+
+volumes:
+  redis_data:
