@@ -46,18 +46,18 @@ export const TherapistCharacter: React.FC<TherapistCharacterProps> = ({
   // Get mouth shape based on mood and speaking state
   const getMouthShape = () => {
     if (isSpeaking && mouthMovement) {
-      return 'M 12 22 Q 15 26 18 22'; // Open mouth for speaking
+      return 'M 95 108 Q 100 112 105 108'; // Open mouth for speaking
     }
     
     switch (mood) {
       case 'happy':
-        return 'M 10 20 Q 15 25 20 20'; // Smile
+        return 'M 92 108 Q 100 115 108 108'; // Smile
       case 'concerned':
-        return 'M 10 22 Q 15 20 20 22'; // Slight frown
+        return 'M 92 110 Q 100 106 108 110'; // Slight frown
       case 'thinking':
-        return 'M 12 21 L 18 21'; // Straight line
+        return 'M 96 108 L 104 108'; // Straight line
       default:
-        return 'M 12 21 Q 15 23 18 21'; // Neutral slight smile
+        return 'M 94 108 Q 100 112 106 108'; // Neutral slight smile
     }
   };
 
@@ -95,13 +95,17 @@ export const TherapistCharacter: React.FC<TherapistCharacterProps> = ({
             <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity="0.1" />
             <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity="0" />
           </radialGradient>
-          <linearGradient id="faceGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" stopColor="hsl(var(--therapy-warm))" />
-            <stop offset="100%" stopColor="hsl(var(--therapy-calm))" />
+          <linearGradient id="skinGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stopColor="#F4C2A1" />
+            <stop offset="100%" stopColor="#E8A87C" />
           </linearGradient>
-          <linearGradient id="bodyGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+          <linearGradient id="shirtGradient" x1="0%" y1="0%" x2="0%" y2="100%">
             <stop offset="0%" stopColor="hsl(var(--primary))" />
-            <stop offset="100%" stopColor="hsl(165 45% 55%)" />
+            <stop offset="100%" stopColor="hsl(200 60% 45%)" />
+          </linearGradient>
+          <linearGradient id="hairGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stopColor="#2C1810" />
+            <stop offset="100%" stopColor="#1A0F08" />
           </linearGradient>
         </defs>
 
@@ -114,111 +118,146 @@ export const TherapistCharacter: React.FC<TherapistCharacterProps> = ({
           className="animate-pulse-gentle"
         />
 
-        {/* Body/Lab coat */}
-        <ellipse
-          cx="100"
-          cy="180"
-          rx="55"
-          ry="45"
-          fill="url(#bodyGradient)"
+        {/* Body/Shirt */}
+        <path
+          d="M 100 140 
+             C 70 140, 45 160, 45 185
+             L 45 220
+             C 45 225, 50 230, 55 230
+             L 145 230
+             C 150 230, 155 225, 155 220
+             L 155 185
+             C 155 160, 130 140, 100 140 Z"
+          fill="url(#shirtGradient)"
           className="transition-all duration-300"
         />
 
-        {/* Collar */}
-        <path
-          d="M 70 160 Q 100 150 130 160 L 130 170 Q 100 160 70 170 Z"
-          fill="hsl(var(--card))"
-          stroke="hsl(var(--border))"
-          strokeWidth="1"
+        {/* Neck */}
+        <ellipse
+          cx="100"
+          cy="135"
+          rx="12"
+          ry="15"
+          fill="url(#skinGradient)"
+          className="transition-all duration-300"
         />
 
         {/* Face */}
         <circle
           cx="100"
           cy="100"
-          r="45"
-          fill="url(#faceGradient)"
-          stroke="hsl(var(--border))"
-          strokeWidth="1"
+          r="42"
+          fill="url(#skinGradient)"
           className="transition-all duration-300"
         />
 
-        {/* Hair */}
+        {/* Hair - Bob cut style */}
         <path
-          d="M 60 80 Q 70 55 100 60 Q 130 55 140 80 Q 135 70 100 75 Q 65 70 60 80"
-          fill="hsl(210 15% 25%)"
+          d="M 100 58
+             C 75 55, 58 70, 58 90
+             C 58 105, 62 115, 68 120
+             L 68 110
+             C 68 95, 75 85, 85 80
+             L 115 80
+             C 125 85, 132 95, 132 110
+             L 132 120
+             C 138 115, 142 105, 142 90
+             C 142 70, 125 55, 100 58 Z"
+          fill="url(#hairGradient)"
           className="transition-all duration-300"
         />
 
-        {/* Glasses */}
-        <g className="transition-all duration-300">
-          <circle
-            cx="85"
-            cy="90"
-            r="12"
-            fill="none"
-            stroke="hsl(210 15% 20%)"
-            strokeWidth="2"
-          />
-          <circle
-            cx="115"
-            cy="90"
-            r="12"
-            fill="none"
-            stroke="hsl(210 15% 20%)"
-            strokeWidth="2"
-          />
-          <line
-            x1="97"
-            y1="90"
-            x2="103"
-            y2="90"
-            stroke="hsl(210 15% 20%)"
-            strokeWidth="2"
-          />
-        </g>
+        {/* Hair bangs */}
+        <path
+          d="M 85 75
+             C 90 70, 95 68, 100 68
+             C 105 68, 110 70, 115 75
+             C 110 78, 105 80, 100 80
+             C 95 80, 90 78, 85 75 Z"
+          fill="url(#hairGradient)"
+          className="transition-all duration-300"
+        />
 
         {/* Eyebrows */}
         <g className="transition-all duration-300" transform={getEyebrowTransform()}>
-          <path
-            d="M 78 82 Q 85 80 92 82"
-            fill="none"
-            stroke="hsl(210 15% 25%)"
-            strokeWidth="2"
-            strokeLinecap="round"
+          <ellipse
+            cx="87"
+            cy="85"
+            rx="8"
+            ry="2"
+            fill="#2C1810"
+            className="transition-all duration-300"
           />
-          <path
-            d="M 108 82 Q 115 80 122 82"
-            fill="none"
-            stroke="hsl(210 15% 25%)"
-            strokeWidth="2"
-            strokeLinecap="round"
+          <ellipse
+            cx="113"
+            cy="85"
+            rx="8"
+            ry="2"
+            fill="#2C1810"
+            className="transition-all duration-300"
           />
         </g>
 
         {/* Eyes */}
         <g className={cn(shouldBlink && 'animate-blink')}>
-          <path
-            d={getEyeShape()}
-            fill="hsl(210 15% 20%)"
-            transform="translate(-10, 0)"
+          {/* Eye whites */}
+          <ellipse
+            cx="87"
+            cy="92"
+            rx="8"
+            ry="6"
+            fill="white"
             className="transition-all duration-300"
           />
-          <path
-            d={getEyeShape()}
-            fill="hsl(210 15% 20%)"
-            transform="translate(20, 0)"
+          <ellipse
+            cx="113"
+            cy="92"
+            rx="8"
+            ry="6"
+            fill="white"
+            className="transition-all duration-300"
+          />
+          
+          {/* Pupils */}
+          <circle
+            cx="87"
+            cy="92"
+            r="3"
+            fill="#2C1810"
+            className="transition-all duration-300"
+          />
+          <circle
+            cx="113"
+            cy="92"
+            r="3"
+            fill="#2C1810"
+            className="transition-all duration-300"
+          />
+          
+          {/* Eye highlights */}
+          <circle
+            cx="88"
+            cy="90"
+            r="1"
+            fill="white"
+            className="transition-all duration-300"
+          />
+          <circle
+            cx="114"
+            cy="90"
+            r="1"
+            fill="white"
             className="transition-all duration-300"
           />
         </g>
 
-        {/* Nose */}
+        {/* Nose - simplified */}
         <ellipse
           cx="100"
-          cy="95"
-          rx="2"
-          ry="4"
-          fill="hsl(var(--therapy-warm))"
+          cy="100"
+          rx="1.5"
+          ry="3"
+          fill="#E8A87C"
           className="transition-all duration-300"
         />
 
@@ -226,7 +265,7 @@ export const TherapistCharacter: React.FC<TherapistCharacterProps> = ({
         <path
           d={getMouthShape()}
           fill="none"
-          stroke="hsl(210 15% 20%)"
+          stroke="#C97856"
           strokeWidth="2"
           strokeLinecap="round"
           className={cn(
@@ -235,47 +274,24 @@ export const TherapistCharacter: React.FC<TherapistCharacterProps> = ({
           )}
         />
 
-        {/* Hands */}
-        <g className={cn(
-          'transition-all duration-300',
-          mood === 'happy' && 'animate-wave'
-        )}>
-          {/* Left hand */}
-          <circle
-            cx="60"
-            cy="170"
-            r="8"
-            fill="url(#faceGradient)"
-            className="transition-all duration-300"
-          />
-          {/* Right hand */}
-          <circle
-            cx="140"
-            cy="170"
-            r="8"
-            fill="url(#faceGradient)"
-            className="transition-all duration-300"
-          />
-        </g>
-
         {/* Listening indicator */}
         {isListening && (
           <g className="animate-pulse-gentle">
             <circle
               cx="160"
               cy="80"
-              r="4"
+              r="3"
               fill="hsl(var(--primary))"
             />
             <circle
-              cx="170"
+              cx="168"
               cy="85"
-              r="3"
+              r="2.5"
               fill="hsl(var(--primary))"
               opacity="0.7"
             />
             <circle
-              cx="180"
+              cx="175"
               cy="90"
               r="2"
               fill="hsl(var(--primary))"
@@ -288,12 +304,12 @@ export const TherapistCharacter: React.FC<TherapistCharacterProps> = ({
         {isSpeaking && (
           <g className="animate-pulse">
             <path
-              d="M 40 95 Q 30 90 25 95 Q 30 100 40 95"
+              d="M 40 95 Q 32 90 28 95 Q 32 100 40 95"
               fill="hsl(var(--primary))"
               opacity="0.6"
             />
             <path
-              d="M 35 100 Q 25 95 20 100 Q 25 105 35 100"
+              d="M 36 100 Q 28 95 24 100 Q 28 105 36 100"
               fill="hsl(var(--primary))"
               opacity="0.4"
             />
