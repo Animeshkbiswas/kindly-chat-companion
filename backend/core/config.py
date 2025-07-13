@@ -25,9 +25,7 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = Field(default=30, description="Token expiration time")
     
     # AI Services
-    openai_api_key: Optional[str] = Field(default=None, description="OpenAI API key")
-    deepseek_api_key: Optional[str] = Field(default=None, description="DeepSeek API key")
-    deepseek_base_url: str = Field(default="https://api.deepseek.com", description="DeepSeek API base URL")
+    local_llm_model_id: Optional[str] = Field(default="lavanyamurugesan123/Llama3.2-3B-Instruct-finetuned-Therapy-oriented", description="Hugging Face model ID for local LLM")
     
     # Audio settings
     max_audio_file_size: int = Field(default=10 * 1024 * 1024, description="Max audio file size in bytes (10MB)")

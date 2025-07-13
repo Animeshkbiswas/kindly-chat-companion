@@ -3,6 +3,7 @@ Therapy Messages Router
 Handles chat messages and AI response generation.
 """
 
+import logging
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -197,6 +198,7 @@ async def chat_endpoint(
             personality=chat_request.therapist_personality,
             user_id=chat_request.user_id
         )
+        logging.info(f"[chat_endpoint] AI response: '{ai_response}' | mood: {character_mood}")
         
         # Save AI response
         ai_message = TherapyMessage(
