@@ -7,6 +7,7 @@ interface EnhancedVoiceInputProps {
   onTranscript: (text: string) => void;
   onStartListening: () => void;
   onStopListening: () => void;
+  setCurrentTranscript?: (text: string) => void; // Add this prop
   disabled?: boolean;
   language?: string;
 }
@@ -15,6 +16,7 @@ export const EnhancedVoiceInput: React.FC<EnhancedVoiceInputProps> = ({
   onTranscript,
   onStartListening,
   onStopListening,
+  setCurrentTranscript, // Destructure the prop
   disabled = false,
   language = 'en-US'
 }) => {
@@ -52,11 +54,17 @@ export const EnhancedVoiceInput: React.FC<EnhancedVoiceInputProps> = ({
 
     recognition.onresult = (event) => {
       let finalTranscript = '';
+      let interimTranscript = '';
       for (let i = event.resultIndex; i < event.results.length; i++) {
         const transcript = event.results[i][0].transcript;
         if (event.results[i].isFinal) {
           finalTranscript += transcript;
+        } else {
+          interimTranscript += transcript;
         }
+      }
+      if (setCurrentTranscript) {
+        setCurrentTranscript(finalTranscript + interimTranscript);
       }
       if (finalTranscript) {
         onTranscript(finalTranscript.trim());
@@ -89,10 +97,11 @@ export const EnhancedVoiceInput: React.FC<EnhancedVoiceInputProps> = ({
       setIsListening(false);
       onStopListening();
       document.dispatchEvent(new CustomEvent('userQuiet'));
+      if (setCurrentTranscript) setCurrentTranscript(''); // Clear preview on end
     };
 
     return recognition;
-  }, [onTranscript, onStartListening, onStopListening, showError, language]);
+  }, [onTranscript, onStartListening, onStopListening, showError, language, setCurrentTranscript]);
 
   const startListening = useCallback(() => {
     if (disabled) return;

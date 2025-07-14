@@ -46,11 +46,12 @@ export const useSpeechSynthesis = (): SpeechSynthesisHook => {
         return;
       } catch (error) {
         console.error('Backend TTS error:', error);
-        toast({
-          title: "TTS Error",
-          description: "Failed to generate speech from backend. Falling back to browser TTS.",
-          variant: "destructive"
-        });
+        // Silently fall back to browser TTS without showing a toast
+        // toast({
+        //   title: "TTS Error",
+        //   description: "Failed to generate speech from backend. Falling back to browser TTS.",
+        //   variant: "destructive"
+        // });
         // Fall back to browser TTS
       }
     }

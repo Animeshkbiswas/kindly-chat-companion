@@ -37,12 +37,11 @@ export const TherapyChat: React.FC = () => {
   const [inputText, setInputText] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [characterMood, setCharacterMood] = useState<CharacterMood>('idle');
-  const [isListening, setIsListening] = useState(false);
   const { settings, updateSettings } = useSettings();
 
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const { speak, stop, isSpeaking } = useSpeechSynthesis();
+  const { speak, stop } = useSpeechSynthesis();
   const { 
     audioData, 
     isEnabled: isAudioVisualizationEnabled, 
@@ -52,20 +51,19 @@ export const TherapyChat: React.FC = () => {
   } = useAudioVisualization();
   const { toast } = useToast();
 
+  // Add state for live transcript preview
+  const [currentTranscript, setCurrentTranscript] = useState('');
+
   // Update character mood based on real-time audio
   useEffect(() => {
     if (audioData.isUserSpeaking && isAudioVisualizationEnabled) {
-      setCharacterMood('listening');
-    } else if (isSpeaking) {
-      setCharacterMood('speaking');
-    } else if (isListening) {
       setCharacterMood('listening');
     } else if (isTyping) {
       setCharacterMood('thinking');
     } else {
       setCharacterMood('idle');
     }
-  }, [isSpeaking, isListening, isTyping, audioData.isUserSpeaking, isAudioVisualizationEnabled]);
+  }, [isTyping, audioData.isUserSpeaking, isAudioVisualizationEnabled]);
 
   // Scroll to bottom when new messages arrive
   useEffect(() => {
@@ -136,46 +134,45 @@ export const TherapyChat: React.FC = () => {
     }
   }, [settings.therapistPersonality, settings.language]);
 
-  const sendMessage = useCallback(async (text: string) => {
-    if (!text.trim()) return;
+  // Real-time voice chat loop
+  const [paused, setPaused] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [isListening, setIsListening] = useState(false);
 
+  // Real-time voice chat handler
+  const handleVoiceLoop = useCallback(async (text: string) => {
+    if (!text.trim()) return;
+    setCurrentTranscript(''); // Clear preview when sending
     const userMessage: Message = {
       id: Date.now().toString(),
       text: text.trim(),
       isUser: true,
       timestamp: new Date()
     };
-
     setMessages(prev => [...prev, userMessage]);
-    setInputText('');
-    setIsTyping(true);
     setCharacterMood('thinking');
-
+    setIsTyping(true);
     try {
-      // Generate AI response using enhanced function
       const responseText = await generateAIResponse(text.trim());
-      
       const aiMessage: Message = {
         id: (Date.now() + 1).toString(),
         text: responseText,
         isUser: false,
         timestamp: new Date()
       };
-
       setMessages(prev => [...prev, aiMessage]);
       setIsTyping(false);
       setCharacterMood('idle');
-
-      // Speak the response if voice is enabled with user settings
       if (settings.voiceEnabled) {
         setCharacterMood('speaking');
+        setIsSpeaking(true);
         setTimeout(() => {
           speak(responseText, {
             rate: settings.speechRate,
             pitch: settings.speechPitch,
             language: settings.language,
             voiceEnabled: settings.voiceEnabled,
-            useBackend: true // Use backend TTS
+            useBackend: true
           });
         }, 500);
       }
@@ -201,21 +198,6 @@ export const TherapyChat: React.FC = () => {
       });
     }
   }, [generateAIResponse, settings, speak, messages, toast]);
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    sendMessage(inputText);
-  };
-
-  const handleVoiceTranscript = (transcript: string) => {
-    setInputText(transcript);
-    // Auto-send after a brief pause
-    setTimeout(() => {
-      if (transcript.trim()) {
-        sendMessage(transcript);
-      }
-    }, 1000);
-  };
 
   const clearChat = () => {
     setMessages([{
@@ -246,6 +228,7 @@ export const TherapyChat: React.FC = () => {
     });
   };
 
+  // Real-time Voice Chat Loop UI
   return (
     <div className="min-h-screen bg-gradient-main flex flex-col lg:flex-row">
       {/* Character Section */}
@@ -257,7 +240,6 @@ export const TherapyChat: React.FC = () => {
             <p className="text-xs text-primary mt-1">Real-time audio enabled</p>
           )}
         </div>
-        
         <TherapistCharacter
           mood={characterMood}
           isListening={isListening || (isAudioVisualizationEnabled && audioData.isUserSpeaking)}
@@ -266,12 +248,8 @@ export const TherapyChat: React.FC = () => {
           audioIntensity={audioData.intensity}
           className="mb-6"
         />
-        
         <div className="flex gap-2 flex-wrap justify-center">
-          <TherapySettings
-            settings={settings}
-            onSettingsChange={updateSettings}
-          />
+          <TherapySettings settings={settings} onSettingsChange={updateSettings} />
           <AudioVisualizationToggle
             isEnabled={isAudioVisualizationEnabled}
             isSupported={isAudioVisualizationSupported}
@@ -288,75 +266,40 @@ export const TherapyChat: React.FC = () => {
             <Trash2 className="w-4 h-4" />
           </Button>
         </div>
+        <div className="mt-4">
+          <Button onClick={() => setPaused(p => !p)}>
+            {paused ? 'Resume Conversation' : 'Stop Conversation'}
+          </Button>
+        </div>
       </div>
-
       {/* Chat Section */}
-      <div className="lg:w-2/3 flex flex-col h-screen lg:h-auto">
-        {/* Chat Messages */}
-        <ScrollArea ref={scrollAreaRef} className="flex-1 p-4">
-          <div className="space-y-4 max-w-4xl mx-auto">
-            {messages.map((message) => (
+      <div className="flex-1 flex flex-col">
+        <ScrollArea ref={scrollAreaRef} className="flex-1 p-6">
+          {currentTranscript && (
+            <div className="mb-4 p-2 bg-primary/10 rounded text-primary animate-pulse">
+              <span className="font-semibold">You (speaking): </span>{currentTranscript}
+            </div>
+          )}
+          <div className="space-y-4">
+            {messages.map((msg) => (
               <ChatMessage
-                key={message.id}
-                message={message.text}
-                isUser={message.isUser}
-                timestamp={message.timestamp}
+                key={msg.id}
+                message={msg.text}
+                isUser={msg.isUser}
+                timestamp={msg.timestamp}
               />
             ))}
-            
-            {isTyping && (
-              <ChatMessage
-                message=""
-                isUser={false}
-                isTyping={true}
-              />
-            )}
           </div>
         </ScrollArea>
-
-        {/* Input Section */}
+        {/* Real-time Voice Chat Loop */}
         <div className="p-4 bg-card/50 backdrop-blur-sm border-t">
-          <form onSubmit={handleSubmit} className="max-w-4xl mx-auto">
-            <div className="flex gap-2">
-              <Input
-                ref={inputRef}
-                value={inputText}
-                onChange={(e) => setInputText(e.target.value)}
-                placeholder="Share what's on your mind..."
-                disabled={isTyping}
-                className={cn(
-                  'flex-1 shadow-gentle focus:shadow-soft transition-all duration-300',
-                  'bg-background/80 backdrop-blur-sm'
-                )}
-                aria-label="Type your message"
-              />
-              
-              <EnhancedVoiceInput
-                onTranscript={handleVoiceTranscript}
-                onStartListening={() => setIsListening(true)}
-                onStopListening={() => setIsListening(false)}
-                disabled={isTyping}
-                useWhisper={true}
-                language={settings.language}
-              />
-              
-              <Button
-                type="submit"
-                disabled={!inputText.trim() || isTyping}
-                className={cn(
-                  'shadow-gentle hover:shadow-soft transition-all duration-300',
-                  'hover:scale-105'
-                )}
-                aria-label="Send message"
-              >
-                <Send className="w-4 h-4" />
-              </Button>
-            </div>
-          </form>
-          
-          <p className="text-xs text-muted-foreground text-center mt-2">
-            This is a simulated therapy experience for demonstration purposes.
-          </p>
+          <EnhancedVoiceInput
+            onTranscript={handleVoiceLoop}
+            onStartListening={() => setIsListening(true)}
+            onStopListening={() => setIsListening(false)}
+            setCurrentTranscript={setCurrentTranscript}
+            disabled={paused || isTyping}
+          />
         </div>
       </div>
     </div>
