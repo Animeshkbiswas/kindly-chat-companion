@@ -53,6 +53,35 @@ export const TherapyChat: React.FC = () => {
 
   // Add state for live transcript preview
   const [currentTranscript, setCurrentTranscript] = useState('');
+  const [emotionProbs, setEmotionProbs] = useState<Record<string, number> | null>(null);
+  const [emotionDetectionActive, setEmotionDetectionActive] = useState(false);
+  const frameIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const [emotionFrameUrl, setEmotionFrameUrl] = useState<string | null>(null);
+
+  // Start emotion detection and polling when audio starts
+  const handleStartAudio = async () => {
+    await fetch('/api/emotion/start', { method: 'POST' });
+    setEmotionDetectionActive(true);
+    frameIntervalRef.current = setInterval(async () => {
+      const res = await fetch('/api/emotion/frame');
+      if (res.ok) {
+        const blob = await res.blob();
+        setEmotionFrameUrl(URL.createObjectURL(blob));
+      }
+    }, 100);
+  };
+
+  // Stop emotion detection and use emotion_probs when audio stops
+  const handleStopAudio = async () => {
+    setEmotionDetectionActive(false);
+    if (frameIntervalRef.current) clearInterval(frameIntervalRef.current);
+    setEmotionFrameUrl(null);
+    const res = await fetch('/api/emotion/stop', { method: 'POST' });
+    const data = await res.json();
+    setEmotionProbs(data.emotion_probs);
+    // Use data.emotion_probs in your chat prompt
+    // Optionally, trigger chat send here if you want auto-send on stop
+  };
 
   // Update character mood based on real-time audio
   useEffect(() => {
@@ -77,13 +106,14 @@ export const TherapyChat: React.FC = () => {
 
 
   // Generate AI response using backend API
-  const generateAIResponse = useCallback(async (userMessage: string): Promise<string> => {
+  const generateAIResponse = useCallback(async (userMessage: string, emotionProbs?: Record<string, number>): Promise<string> => {
     try {
       // Use backend API for chat responses
       const response = await apiService.sendChatMessage({
         message: userMessage,
         therapist_personality: settings.therapistPersonality,
         language: settings.language,
+        emotion_probs: emotionProbs, // Include emotion probabilities in the payload
       });
       
       return response.response;
@@ -153,7 +183,8 @@ export const TherapyChat: React.FC = () => {
     setCharacterMood('thinking');
     setIsTyping(true);
     try {
-      const responseText = await generateAIResponse(text.trim());
+      // Always use the latest emotionProbs from state, but pass undefined if null
+      const responseText = await generateAIResponse(text.trim(), emotionProbs || undefined);
       const aiMessage: Message = {
         id: (Date.now() + 1).toString(),
         text: responseText,
@@ -178,7 +209,6 @@ export const TherapyChat: React.FC = () => {
       }
     } catch (error) {
       console.error('Error generating response:', error);
-      
       // Fallback response on error
       const fallbackMessage: Message = {
         id: (Date.now() + 1).toString(),
@@ -186,18 +216,16 @@ export const TherapyChat: React.FC = () => {
         isUser: false,
         timestamp: new Date()
       };
-
       setMessages(prev => [...prev, fallbackMessage]);
       setIsTyping(false);
       setCharacterMood('idle');
-
       toast({
         title: "Connection Issue",
         description: "Having trouble connecting. Using basic responses for now.",
         variant: "destructive",
       });
     }
-  }, [generateAIResponse, settings, speak, messages, toast]);
+  }, [generateAIResponse, settings, speak, messages, toast, emotionProbs]);
 
   const clearChat = () => {
     setMessages([{
@@ -248,6 +276,22 @@ export const TherapyChat: React.FC = () => {
           audioIntensity={audioData.intensity}
           className="mb-6"
         />
+        {/* Emotion video and label below avatar */}
+        <div style={{ marginBottom: 16, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+          {emotionFrameUrl && (
+            <img src={emotionFrameUrl} alt="Live Emotion Frame" style={{ width: 120, height: 90, borderRadius: 8, border: '2px solid #ccc' }} />
+          )}
+          {emotionProbs && (
+            <div style={{ fontWeight: 'bold', fontSize: 16, color: '#1e293b', textAlign: 'center' }}>
+              {(() => {
+                const sorted = Object.entries(emotionProbs).sort((a, b) => b[1] - a[1]);
+                if (sorted.length === 0) return null;
+                const [emotion, prob] = sorted[0];
+                return `Detected Emotion: ${emotion} (${(prob * 100).toFixed(1)}%)`;
+              })()}
+            </div>
+          )}
+        </div>
         <div className="flex gap-2 flex-wrap justify-center">
           <TherapySettings settings={settings} onSettingsChange={updateSettings} />
           <AudioVisualizationToggle
@@ -273,7 +317,7 @@ export const TherapyChat: React.FC = () => {
         </div>
       </div>
       {/* Chat Section */}
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col relative">
         <ScrollArea ref={scrollAreaRef} className="flex-1 p-6">
           {currentTranscript && (
             <div className="mb-4 p-2 bg-primary/10 rounded text-primary animate-pulse">
@@ -295,8 +339,14 @@ export const TherapyChat: React.FC = () => {
         <div className="p-4 bg-card/50 backdrop-blur-sm border-t">
           <EnhancedVoiceInput
             onTranscript={handleVoiceLoop}
-            onStartListening={() => setIsListening(true)}
-            onStopListening={() => setIsListening(false)}
+            onStartListening={() => {
+              setIsListening(true);
+              handleStartAudio(); // Start emotion detection when voice starts
+            }}
+            onStopListening={() => {
+              setIsListening(false);
+              handleStopAudio(); // Stop emotion detection when voice stops
+            }}
             setCurrentTranscript={setCurrentTranscript}
             disabled={paused || isTyping}
           />

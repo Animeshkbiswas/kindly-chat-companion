@@ -22,6 +22,12 @@ from models.pydantic_models import (
 from services.audio_service import audio_service
 from core.config import get_settings
 
+from fastapi import UploadFile
+import numpy as np
+import cv2
+import mediapipe as mp
+from emotion_detection.model.keypoint_classifier.keypoint_classifier import KeyPointClassifier
+
 settings = get_settings()
 router = APIRouter()
 
@@ -195,3 +201,69 @@ async def get_available_voices():
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error fetching voices: {str(e)}"
         )
+
+
+@router.post("/emotion/detect")
+async def detect_emotion(
+    file: UploadFile = File(...)
+):
+    """
+    Detect emotion from an uploaded image file (webcam frame)
+    """
+    try:
+        # Read image file
+        contents = await file.read()
+        nparr = np.frombuffer(contents, np.uint8)
+        image = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+        if image is None:
+            raise HTTPException(status_code=400, detail="Invalid image file")
+
+        # Run MediaPipe face mesh
+        mp_face_mesh = mp.solutions.face_mesh
+        face_mesh = mp_face_mesh.FaceMesh(
+            max_num_faces=1,
+            refine_landmarks=True,
+            min_detection_confidence=0.5,
+            min_tracking_confidence=0.5)
+        results = face_mesh.process(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
+        if not results.multi_face_landmarks:
+            return {"emotion_probs": None, "success": False, "reason": "No face detected"}
+
+        # Get landmarks for the first face
+        face_landmarks = results.multi_face_landmarks[0]
+        image_height, image_width = image.shape[:2]
+        landmark_point = []
+        for landmark in face_landmarks.landmark:
+            x = min(int(landmark.x * image_width), image_width - 1)
+            y = min(int(landmark.y * image_height), image_height - 1)
+            landmark_point.append([x, y])
+
+        # Preprocess landmarks
+        import itertools, copy
+        temp_landmark_list = copy.deepcopy(landmark_point)
+        base_x, base_y = temp_landmark_list[0][0], temp_landmark_list[0][1]
+        for idx, point in enumerate(temp_landmark_list):
+            temp_landmark_list[idx][0] -= base_x
+            temp_landmark_list[idx][1] -= base_y
+        flat_landmarks = list(itertools.chain.from_iterable(temp_landmark_list))
+        max_value = max(list(map(abs, flat_landmarks)))
+        if max_value == 0:
+            return {"emotion_probs": None, "success": False, "reason": "Invalid landmarks"}
+        norm_landmarks = [n / max_value for n in flat_landmarks]
+
+        # Run classifier
+        classifier = KeyPointClassifier()
+        emotion_id = classifier(norm_landmarks)
+        # Read labels
+        with open('emotion_detection/model/keypoint_classifier/keypoint_classifier_label.csv', encoding='utf-8-sig') as f:
+            labels = [row.strip() for row in f.readlines() if row.strip()]
+        # Build running probability dictionary
+        d = {label: 0 for label in labels}
+        total = 1
+        d[labels[emotion_id]] += 1
+        d_new = {key: value/total for key, value in d.items()}
+        return {"emotion_probs": d_new, "success": True}
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Emotion detection failed: {str(e)}")

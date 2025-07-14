@@ -6,10 +6,15 @@ Main application entry point with CORS configuration and router includes.
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse, JSONResponse
 import os
 from pathlib import Path
 from dotenv import load_dotenv
+import threading
+import io
+import sys
+sys.path.append(str(Path(__file__).parent / "emotion_detection"))
+from emotion_detection.main import run_emotion_detection
 
 load_dotenv()
 
@@ -70,6 +75,50 @@ if static_dir.exists():
         else:
             # Return index.html for SPA routing
             return FileResponse(static_dir / "index.html")
+
+# Global state for emotion detection
+emotion_state = {
+    'emotion_probs': None,
+    'frame': None,
+    'stop': False,
+    'stopped': False,
+    'thread': None
+}
+
+@app.post("/api/emotion/start")
+def start_emotion_detection():
+    if emotion_state.get('thread') and emotion_state['thread'].is_alive():
+        return {"success": False, "message": "Emotion detection already running."}
+    emotion_state['emotion_probs'] = None
+    emotion_state['frame'] = None
+    emotion_state['stop'] = False
+    emotion_state['stopped'] = False
+    t = threading.Thread(target=run_emotion_detection, args=(emotion_state,))
+    emotion_state['thread'] = t
+    t.start()
+    return {"success": True, "message": "Emotion detection started."}
+
+@app.post("/api/emotion/stop")
+def stop_emotion_detection():
+    emotion_state['stop'] = True
+    t = emotion_state.get('thread')
+    if t and t.is_alive():
+        t.join(timeout=5)
+    return {"success": True, "emotion_probs": emotion_state.get('emotion_probs')}
+
+@app.get("/api/emotion/frame")
+def get_emotion_frame():
+    frame = emotion_state.get('frame')
+    if frame is None:
+        return JSONResponse({"success": False, "message": "No frame available."}, status_code=404)
+    return StreamingResponse(io.BytesIO(frame), media_type="image/jpeg")
+
+@app.get("/api/emotion/probs")
+def get_emotion_probs():
+    probs = emotion_state.get('emotion_probs')
+    if probs is None:
+        return {"success": False, "emotion_probs": None}
+    return {"success": True, "emotion_probs": probs}
 
 @app.on_event("startup")
 async def startup_event():

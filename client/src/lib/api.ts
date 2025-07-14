@@ -8,6 +8,7 @@ interface ChatRequest {
   user_id?: number;
   therapist_personality?: string;
   language?: string;
+  emotion_probs?: Record<string, number>; // Add this field
 }
 
 interface ChatResponse {

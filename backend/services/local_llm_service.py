@@ -29,15 +29,23 @@ class LocalLLMService:
             logging.error(f"[LocalLLMService] Failed to initialize model: {e}")
             self.is_initialized = False
 
-    def generate_therapy_response(self, user_message, conversation_history=None, personality=None, user_id=None):
+    def generate_therapy_response(self, user_message, conversation_history=None, personality=None, user_id=None, emotion_probs=None):
         """Generate therapy response with fallback to rule-based responses"""
         if not self.is_initialized or not self.tokenizer or not self.model:
             logging.warning("[LocalLLMService] Model not initialized, using fallback responses")
             return self.generate_fallback_response(user_message, personality), "concerned"
         
         try:
-            prompt = f"""<|begin_of_text|><|start_header_id|>system<|end_header_id|>\nYou are a Psychology Assistant, designed to answer users' questions in a kind, empathetic, and respectful manner, drawing from psychological principles and research to provide thoughtful support.DO NOT USE THE NAME OF THE PERSON IN YOUR RESPONSE<|eot_id|><|start_header_id|>user<|end_header_id|>\n{user_message}<|eot_id|><|start_header_id|>assistant<|end_header_id|>"""
+            # Log emotion detector output
+            logging.info(f"[LocalLLMService] Emotion detector output: {emotion_probs}")
+            print(f"[LocalLLMService] Emotion detector output: {emotion_probs}")
+            prompt = f"""<|begin_of_text|><|start_header_id|>system<|end_header_id|>\nYou are a Psychology Assistant, designed to answer users' questions in a kind, empathetic, and respectful manner, drawing from psychological principles and research to provide thoughtful support.DO NOT USE THE NAME OF THE PERSON IN YOUR RESPONSE"""
+            if emotion_probs:
+                prompt += f"\nThe user's current facial emotion probabilities are: {emotion_probs}"  # Add emotion_probs to the prompt
+            prompt += f"<|eot_id|><|start_header_id|>user<|end_header_id|>\n{user_message}<|eot_id|><|start_header_id|>assistant<|end_header_id|>"
+            # Log the prompt being sent to the model
             logging.info(f"[LocalLLMService] Prompt sent to model:\n{prompt}")
+            print(f"[LocalLLMService] Prompt sent to model:\n{prompt}")
             inputs = self.tokenizer(prompt, return_tensors="pt").to(self.model.device)
             with torch.no_grad():
                 outputs = self.model.generate(

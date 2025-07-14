@@ -197,9 +197,10 @@ async def chat_endpoint(
             user_message=chat_request.message,
             conversation_history=conversation_history,
             personality=chat_request.therapist_personality,
-            user_id=chat_request.user_id
+            user_id=chat_request.user_id,
+            emotion_probs=chat_request.emotion_probs  # Pass emotion_probs to the model
         )
-        logging.info(f"[chat_endpoint] AI response: '{ai_response}' | mood: {character_mood}")
+        logging.info(f"[chat_endpoint] AI response: '{ai_response}' | mood: {character_mood} | emotion_probs: {chat_request.emotion_probs}")
         
         # Save AI response
         ai_message = TherapyMessage(

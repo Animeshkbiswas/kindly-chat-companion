@@ -4,7 +4,7 @@ Ensures type safety and API documentation.
 """
 
 from datetime import datetime
-from typing import Optional, List, Literal
+from typing import Optional, List, Literal, Dict
 from pydantic import BaseModel, Field, ConfigDict
 
 
@@ -97,6 +97,7 @@ class ChatRequest(BaseModel):
     user_id: Optional[int] = None
     therapist_personality: str = Field(default="warm", max_length=50)
     language: str = Field(default="en-US", max_length=10)
+    emotion_probs: Optional[Dict[str, float]] = None  # Add this field
 
 
 class ChatResponse(BaseModel):

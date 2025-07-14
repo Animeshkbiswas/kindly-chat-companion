@@ -16,10 +16,11 @@ class AIService:
         user_message: str,
         conversation_history,
         personality: str = "warm",
-        user_id=None
+        user_id=None,
+        emotion_probs=None
     ):
-        logging.info(f"[AIService] Generating response for user_id={user_id}, personality={personality}, message='{user_message}'")
-        response, mood = self.local_llm_service.generate_therapy_response(user_message, conversation_history, personality, user_id)
+        logging.info(f"[AIService] Generating response for user_id={user_id}, personality={personality}, message='{user_message}', emotion_probs={emotion_probs}")
+        response, mood = self.local_llm_service.generate_therapy_response(user_message, conversation_history, personality, user_id, emotion_probs=emotion_probs)
         logging.info(f"[AIService] Local LLM response: '{response}' | mood: {mood}")
         return response, mood
 
