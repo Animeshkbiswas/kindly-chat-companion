@@ -1,75 +1,14 @@
 import React, { useState, useRef, useCallback } from 'react';
-import { Mic, MicOff, Square } from 'lucide-react';
+import { Mic, Square } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { apiService } from '@/lib/api';
-import RecordRTC from 'recordrtc';
 
 interface EnhancedVoiceInputProps {
   onTranscript: (text: string) => void;
   onStartListening: () => void;
   onStopListening: () => void;
   disabled?: boolean;
-  useWhisper?: boolean;
-  apiKey?: string;
   language?: string;
-}
-
-// Replace BackendSpeechRecognition with RecordRTC-based implementation
-class BackendSpeechRecognition {
-  private recorder: any = null;
-  private stream: MediaStream | null = null;
-  private onTranscriptionComplete: (text: string) => void;
-  private onError: (error: string) => void;
-  private language: string;
-
-  constructor(language: string, onTranscription: (text: string) => void, onError: (error: string) => void) {
-    this.language = language;
-    this.onTranscriptionComplete = onTranscription;
-    this.onError = onError;
-  }
-
-  async startRecording() {
-    try {
-      this.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      this.recorder = new RecordRTC(this.stream, {
-        type: 'audio',
-        mimeType: 'audio/webm', // Changed from 'audio/wav' to 'audio/webm'
-      });
-      this.recorder.startRecording();
-    } catch (error) {
-      this.onError(`Error accessing microphone: ${error}`);
-    }
-  }
-
-  stopRecording() {
-    if (this.recorder) {
-      this.recorder.stopRecording(async () => {
-        const wavBlob = this.recorder.getBlob();
-        console.log('Recorded audio blob type:', wavBlob.type); // Log the blob type for debugging
-        if (this.stream) {
-          this.stream.getTracks().forEach(track => track.stop());
-        }
-        await this.processAudio(wavBlob);
-      });
-    }
-  }
-
-  private async processAudio(wavBlob: Blob) {
-    if (!wavBlob || wavBlob.size === 0) {
-      this.onError('No audio data recorded');
-      return;
-    }
-    try {
-      const result = await apiService.transcribeAudio(wavBlob, {
-        language: this.language,
-        use_whisper: false, // Use local Vosk model
-      });
-      this.onTranscriptionComplete(result.text || '');
-    } catch (error) {
-      this.onError(`Error transcribing audio: ${error}`);
-    }
-  }
 }
 
 export const EnhancedVoiceInput: React.FC<EnhancedVoiceInputProps> = ({
@@ -77,14 +16,11 @@ export const EnhancedVoiceInput: React.FC<EnhancedVoiceInputProps> = ({
   onStartListening,
   onStopListening,
   disabled = false,
-  useWhisper = false,
-  apiKey,
   language = 'en-US'
 }) => {
   const [isListening, setIsListening] = useState(false);
   const [isSupported, setIsSupported] = useState(true);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
-  const backendRecognitionRef = useRef<BackendSpeechRecognition | null>(null);
   const { toast } = useToast();
 
   const showError = useCallback((message: string) => {
@@ -111,33 +47,26 @@ export const EnhancedVoiceInput: React.FC<EnhancedVoiceInputProps> = ({
     recognition.onstart = () => {
       setIsListening(true);
       onStartListening();
-      // Dispatch custom events for audio visualization
-      document.dispatchEvent(new CustomEvent('userSpeaking', { 
-        detail: { audioLevel: 0.5 } 
-      }));
+      document.dispatchEvent(new CustomEvent('userSpeaking', { detail: { audioLevel: 0.5 } }));
     };
 
     recognition.onresult = (event) => {
       let finalTranscript = '';
-      
       for (let i = event.resultIndex; i < event.results.length; i++) {
         const transcript = event.results[i][0].transcript;
         if (event.results[i].isFinal) {
           finalTranscript += transcript;
         }
       }
-      
       if (finalTranscript) {
         onTranscript(finalTranscript.trim());
       }
     };
 
     recognition.onerror = (event) => {
-      console.error('Speech recognition error:', event.error);
       setIsListening(false);
       onStopListening();
       document.dispatchEvent(new CustomEvent('userQuiet'));
-      
       let errorMessage = 'Speech recognition failed';
       switch (event.error) {
         case 'no-speech':
@@ -167,58 +96,25 @@ export const EnhancedVoiceInput: React.FC<EnhancedVoiceInputProps> = ({
 
   const startListening = useCallback(() => {
     if (disabled) return;
-
-    if (useWhisper) {
-      // Use Backend API for speech recognition
-      if (!backendRecognitionRef.current) {
-        backendRecognitionRef.current = new BackendSpeechRecognition(
-          language,
-          (text: string) => {
-            onTranscript(text);
-            setIsListening(false);
-            onStopListening();
-            document.dispatchEvent(new CustomEvent('userQuiet'));
-          },
-          (error: string) => {
-            showError(error);
-            setIsListening(false);
-            onStopListening();
-            document.dispatchEvent(new CustomEvent('userQuiet'));
-          }
-        );
-      }
-      
-      backendRecognitionRef.current.startRecording();
-      setIsListening(true);
-      onStartListening();
-      document.dispatchEvent(new CustomEvent('userSpeaking', { 
-        detail: { audioLevel: 0.5 } 
-      }));
-    } else {
-      // Use browser Speech Recognition
-      if (!recognitionRef.current) {
-        recognitionRef.current = initializeBrowserSpeechRecognition();
-      }
-      
-      if (recognitionRef.current && isSupported) {
-        try {
-          recognitionRef.current.start();
-        } catch (error) {
-          showError('Failed to start speech recognition');
-        }
-      } else {
-        showError('Speech recognition is not supported in this browser');
-      }
+    if (!recognitionRef.current) {
+      recognitionRef.current = initializeBrowserSpeechRecognition();
     }
-  }, [disabled, useWhisper, apiKey, onTranscript, onStartListening, onStopListening, initializeBrowserSpeechRecognition, isSupported, showError]);
+    if (recognitionRef.current && isSupported) {
+      try {
+        recognitionRef.current.start();
+      } catch (error) {
+        showError('Failed to start speech recognition');
+      }
+    } else {
+      showError('Speech recognition is not supported in this browser');
+    }
+  }, [disabled, initializeBrowserSpeechRecognition, isSupported, showError]);
 
   const stopListening = useCallback(() => {
-    if (useWhisper && backendRecognitionRef.current) {
-      backendRecognitionRef.current.stopRecording();
-    } else if (recognitionRef.current) {
+    if (recognitionRef.current) {
       recognitionRef.current.stop();
     }
-  }, [useWhisper]);
+  }, []);
 
   const toggleListening = useCallback(() => {
     if (isListening) {
@@ -228,7 +124,7 @@ export const EnhancedVoiceInput: React.FC<EnhancedVoiceInputProps> = ({
     }
   }, [isListening, startListening, stopListening]);
 
-  if (!isSupported && !useWhisper) {
+  if (!isSupported) {
     return (
       <div className="text-sm text-muted-foreground p-2 rounded-md bg-muted">
         Speech recognition not supported in this browser
@@ -258,16 +154,10 @@ export const EnhancedVoiceInput: React.FC<EnhancedVoiceInputProps> = ({
         ) : (
           <>
             <Mic className="w-4 h-4 mr-1" />
-            {useWhisper ? 'Record (Backend)' : 'Speak'}
+            Speak
           </>
         )}
       </Button>
-      
-      {useWhisper && (
-        <span className="text-xs text-blue-600">
-          Using backend transcription
-        </span>
-      )}
     </div>
   );
 };

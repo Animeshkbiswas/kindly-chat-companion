@@ -15,8 +15,6 @@ import traceback
 
 from models.database import get_db
 from models.pydantic_models import (
-    AudioTranscriptionRequest,
-    AudioTranscriptionResponse,
     TextToSpeechRequest,
     TextToSpeechResponse,
     BaseResponse
@@ -26,60 +24,6 @@ from core.config import get_settings
 
 settings = get_settings()
 router = APIRouter()
-
-
-@router.post("/transcribe", response_model=AudioTranscriptionResponse)
-async def transcribe_audio(
-    audio_file: UploadFile = File(...),
-    language: str = "en-US",
-    use_whisper: bool = False,
-    db: AsyncSession = Depends(get_db)
-):
-    """
-    Transcribe audio file to text
-    Supports both browser-recorded audio and file uploads
-    """
-    try:
-        print("Received audio_file.content_type:", audio_file.content_type)  # Debug: log MIME type
-        # Validate file size
-        if audio_file.size and audio_file.size > settings.max_audio_file_size:
-            raise HTTPException(
-                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-                detail=f"File too large. Maximum size: {settings.max_audio_file_size} bytes"
-            )
-        
-        # Validate file type
-        allowed_types = ["audio/wav", "audio/mp3", "audio/mpeg", "audio/ogg", "audio/webm"]
-        if not any(audio_file.content_type.startswith(t) for t in allowed_types):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Unsupported audio format. Allowed: {', '.join(allowed_types)}"
-            )
-        
-        # Read audio data
-        audio_data = await audio_file.read()
-        
-        # Transcribe audio
-        transcription_result = await audio_service.transcribe_audio(
-            audio_data=audio_data,
-            filename=audio_file.filename or "audio.wav",
-            language=language,
-            use_whisper=use_whisper
-        )
-        print("Transcription result to return:", transcription_result)
-        return AudioTranscriptionResponse(
-            text="test",
-            confidence=1.0,
-            duration=1.0
-        )
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error transcribing audio: {str(e)}"
-        )
 
 
 @router.post("/synthesize", response_model=TextToSpeechResponse)

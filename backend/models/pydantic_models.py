@@ -146,20 +146,7 @@ class UserSettingsResponse(BaseModel):
     updated_at: datetime
 
 
-# Audio models
-class AudioTranscriptionRequest(BaseModel):
-    """Audio transcription request"""
-    language: str = Field(default="en-US", max_length=10)
-    use_whisper: bool = False
-
-
-class AudioTranscriptionResponse(BaseModel):
-    """Audio transcription response"""
-    text: str
-    confidence: Optional[float] = None
-    duration: Optional[float] = None
-
-
+# TextToSpeechRequest and TextToSpeechResponse models
 class TextToSpeechRequest(BaseModel):
     """Text-to-speech request"""
     text: str = Field(..., min_length=1, max_length=2000)

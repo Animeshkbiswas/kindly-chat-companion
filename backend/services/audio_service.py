@@ -9,11 +9,6 @@ import tempfile
 import hashlib
 from typing import Dict, Any, Optional, List
 import pyttsx3
-import wave
-import vosk
-import json
-import ffmpeg
-import gc
 import shutil
 import time
 
@@ -30,93 +25,9 @@ class AudioService:
         self.audio_dir = settings.audio_upload_dir
         self._ensure_audio_dir()
         self.tts_engine = pyttsx3.init()
-        self.vosk_model = None
-        try:
-            self.vosk_model = vosk.Model("C:/Users/anime/Downloads/microsoft/kindly-chat-companion/backend/vosk-model-small-en-us-0.15")
-        except Exception as e:
-            print(f"Vosk model not found or failed to load: {e}")
     
     def _ensure_audio_dir(self):
         os.makedirs(self.audio_dir, exist_ok=True)
-    
-    async def transcribe_audio(
-        self,
-        audio_data: bytes,
-        filename: str,
-        language: str = "en-US",
-        use_whisper: bool = False,
-        upload_file_obj=None  # Pass UploadFile object if available
-    ) -> Dict[str, Any]:
-        """
-        Transcribe audio to text using Vosk (local STT)
-        """
-        ext = os.path.splitext(filename)[-1].lower()
-        if upload_file_obj is not None:
-            # Save the uploaded file to a new temp file and ensure all handles are closed
-            fd, temp_file_path = tempfile.mkstemp(suffix=ext)
-            with os.fdopen(fd, 'wb') as out_file:
-                shutil.copyfileobj(upload_file_obj.file, out_file)
-            upload_file_obj.file.close()
-        else:
-            # Fallback for when only bytes are provided
-            fd, temp_file_path = tempfile.mkstemp(suffix=ext)
-            with os.fdopen(fd, 'wb') as tmp:
-                tmp.write(audio_data)
-        # Now temp_file_path is fully closed and safe for ffmpeg
-        try:
-            gc.collect()  # Ensure all handles are released
-
-            if ext != ".wav":
-                wav_temp_path = temp_file_path + ".wav"
-                max_retries = 5
-                for attempt in range(max_retries):
-                    try:
-                        (
-                            ffmpeg
-                            .input(temp_file_path)
-                            .output(wav_temp_path, format='wav', acodec='pcm_s16le', ac=1, ar='16000')
-                            .run(quiet=True, overwrite_output=True)
-                        )
-                        break  # Success!
-                    except Exception as e:
-                        if attempt < max_retries - 1 and 'being used by another process' in str(e):
-                            time.sleep(0.2)  # Wait 200ms and try again
-                        else:
-                            os.unlink(temp_file_path)
-                            return {"text": f"Transcription error: failed to convert audio to WAV: {e}", "confidence": 0.0, "duration": None}
-                os.unlink(temp_file_path)
-                temp_file_path = wav_temp_path
-        except Exception as e:
-            return {"text": f"Transcription error: {e}", "confidence": 0.0, "duration": None}
-        try:
-            wf = wave.open(temp_file_path, "rb")
-            if wf.getnchannels() != 1 or wf.getsampwidth() != 2:
-                result = {"text": "Audio must be WAV format mono PCM.", "confidence": 0.0, "duration": None}
-                print("Returning transcription result (bad wav):", result)
-                return result
-            if not self.vosk_model:
-                result = {"text": "Vosk model not available.", "confidence": 0.0, "duration": None}
-                print("Returning transcription result (no model):", result)
-                return result
-            rec = vosk.KaldiRecognizer(self.vosk_model, wf.getframerate())
-            results = []
-            while True:
-                data = wf.readframes(4000)
-                if len(data) == 0:
-                    break
-                if rec.AcceptWaveform(data):
-                    results.append(json.loads(rec.Result()))
-            results.append(json.loads(rec.FinalResult()))
-            text = " ".join([r.get("text", "") for r in results])
-            result = {"text": text, "confidence": 1.0, "duration": wf.getnframes() / wf.getframerate()}
-            print("Returning transcription result (success):", result)
-            return result
-        except Exception as e:
-            result = {"text": f"Transcription error: {e}", "confidence": 0.0, "duration": None}
-            print("Returning transcription result (exception):", result)
-            return result
-        finally:
-            os.unlink(temp_file_path)
     
     async def synthesize_speech(
         self,

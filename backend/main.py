@@ -1,7 +1,7 @@
 """
 FastAPI Backend for Therapy Chat Application
 Main application entry point with CORS configuration and router includes.
-"""
+"""  
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
