@@ -12,7 +12,7 @@ import { useSpeechSynthesis } from './SpeechSynthesis';
 import { useAudioVisualization } from '@/hooks/useAudioVisualization';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
-import { generateTherapyResponse } from '@/lib/openai';
+import { apiService } from '@/lib/api';
 import { useSettings } from '@/hooks/useSettings';
 
 interface Message {
@@ -78,14 +78,19 @@ export const TherapyChat: React.FC = () => {
   }, [messages, isTyping]);
 
 
-  // Generate AI response with personality-aware responses
+  // Generate AI response using backend API
   const generateAIResponse = useCallback(async (userMessage: string): Promise<string> => {
     try {
-      // Try to use OpenAI first if available
-      const aiResponse = await generateTherapyResponse(userMessage, [], settings.therapistPersonality);
-      return aiResponse;
+      // Use backend API for chat responses
+      const response = await apiService.sendChatMessage({
+        message: userMessage,
+        therapist_personality: settings.therapistPersonality,
+        language: settings.language,
+      });
+      
+      return response.response;
     } catch (error) {
-      console.log('OpenAI not available, using fallback responses');
+      console.error('Backend API error:', error);
       
       // Fallback personality-based responses
       const responses = {
@@ -129,7 +134,7 @@ export const TherapyChat: React.FC = () => {
       const personalityResponses = responses[settings.therapistPersonality as keyof typeof responses] || responses.warm;
       return personalityResponses[Math.floor(Math.random() * personalityResponses.length)];
     }
-  }, [settings.therapistPersonality]);
+  }, [settings.therapistPersonality, settings.language]);
 
   const sendMessage = useCallback(async (text: string) => {
     if (!text.trim()) return;
@@ -169,7 +174,8 @@ export const TherapyChat: React.FC = () => {
             rate: settings.speechRate,
             pitch: settings.speechPitch,
             language: settings.language,
-            voiceEnabled: settings.voiceEnabled
+            voiceEnabled: settings.voiceEnabled,
+            useBackend: true // Use backend TTS
           });
         }, 500);
       }
@@ -330,7 +336,7 @@ export const TherapyChat: React.FC = () => {
                 onStartListening={() => setIsListening(true)}
                 onStopListening={() => setIsListening(false)}
                 disabled={isTyping}
-                useWhisper={false}
+                useWhisper={true}
                 language={settings.language}
               />
               

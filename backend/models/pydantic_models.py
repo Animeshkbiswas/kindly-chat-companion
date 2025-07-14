@@ -203,44 +203,7 @@ class HealthResponse(BaseModel):
     ai_services: dict
 
 
-# Psychology Interview models
-class PsychologyInterviewRequest(BaseModel):
-    """Psychology interview request"""
-    session_id: Optional[int] = None
-    user_id: Optional[int] = None
-    user_message: Optional[str] = None
-    interviewer: str = Field(default="Sarah", max_length=50)
-    language: str = Field(default="english", max_length=20)
 
-
-class PsychologyInterviewResponse(BaseModel):
-    """Psychology interview response"""
-    session_id: int
-    message: str
-    audio_data: Optional[bytes] = None
-    question_count: int
-    total_questions: int
-    is_complete: bool = False
-
-
-class DocumentAnalysisRequest(BaseModel):
-    """Document analysis request"""
-    language: str = Field(default="english", max_length=20)
-
-
-class DocumentAnalysisResponse(BaseModel):
-    """Document analysis response"""
-    report_content: str
-    pdf_path: str
-
-
-class InterviewerPersonality(BaseModel):
-    """Interviewer personality model"""
-    id: str
-    name: str
-    description: str
-    voice: str
-    personality: str
 
 
 # Error models

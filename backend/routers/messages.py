@@ -8,6 +8,7 @@ from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update
+from sqlalchemy.sql import func
 
 from models.database import get_db
 from models.schemas import TherapyMessage, TherapySession
@@ -210,7 +211,7 @@ async def chat_endpoint(
         db.add(ai_message)
         
         # Update session timestamp and title if it's the first exchange
-        session_update = {"updated_at": ai_message.created_at}
+        session_update = {"updated_at": func.now()}
         if not conversation_history:  # First exchange
             # Generate title from user's first message
             title = chat_request.message[:50] + "..." if len(chat_request.message) > 50 else chat_request.message
@@ -229,6 +230,12 @@ async def chat_endpoint(
         session_query = select(TherapySession).where(TherapySession.id == session_id)
         session_result = await db.execute(session_query)
         updated_session = session_result.scalar_one()
+
+        print("DEBUG: ai_response =", ai_response)
+        print("DEBUG: session_id =", session_id)
+        print("DEBUG: ai_message.id =", ai_message.id)
+        print("DEBUG: character_mood =", character_mood)
+        print("DEBUG: updated_session.title =", updated_session.title)
         
         return ChatResponse(
             response=ai_response,

@@ -5,6 +5,7 @@ python-multipart>=0.0.6
 
 # Database
 asyncpg>=0.28.0
+aiosqlite>=0.19.0
 databases[postgresql]>=0.7.0
 sqlalchemy>=2.0.0
 alembic>=1.11.0
@@ -30,11 +31,7 @@ huggingface-hub>=0.19.0
 reportlab>=4.0.7
 fpdf2>=2.7.6
 
-# Psychology module dependencies
-langchain>=0.1.0
-langchain-openai>=0.1.0
-langchain-community>=0.1.0
-faiss-cpu>=1.7.4
+# Document processing (for reports)
 PyPDF2>=3.0.0
 python-docx>=1.1.0
 

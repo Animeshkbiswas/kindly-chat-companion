@@ -44,7 +44,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
         </div>
         
         <div className={cn(
-          'text-sm leading-relaxed',
+          'text-sm leading-relaxed break-words overflow-x-auto',
           isUser ? 'text-primary-foreground user-message-content' : 'text-foreground'
         )}>
           {isTyping ? (

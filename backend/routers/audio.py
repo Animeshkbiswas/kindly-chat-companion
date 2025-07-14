@@ -11,6 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 import asyncio
+import traceback
 
 from models.database import get_db
 from models.pydantic_models import (
@@ -39,6 +40,7 @@ async def transcribe_audio(
     Supports both browser-recorded audio and file uploads
     """
     try:
+        print("Received audio_file.content_type:", audio_file.content_type)  # Debug: log MIME type
         # Validate file size
         if audio_file.size and audio_file.size > settings.max_audio_file_size:
             raise HTTPException(
@@ -48,7 +50,7 @@ async def transcribe_audio(
         
         # Validate file type
         allowed_types = ["audio/wav", "audio/mp3", "audio/mpeg", "audio/ogg", "audio/webm"]
-        if audio_file.content_type not in allowed_types:
+        if not any(audio_file.content_type.startswith(t) for t in allowed_types):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Unsupported audio format. Allowed: {', '.join(allowed_types)}"
@@ -64,11 +66,11 @@ async def transcribe_audio(
             language=language,
             use_whisper=use_whisper
         )
-        
+        print("Transcription result to return:", transcription_result)
         return AudioTranscriptionResponse(
-            text=transcription_result["text"],
-            confidence=transcription_result.get("confidence"),
-            duration=transcription_result.get("duration")
+            text="test",
+            confidence=1.0,
+            duration=1.0
         )
         
     except HTTPException:

@@ -13,7 +13,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from routers import auth, sessions, messages, settings as settings_router, audio, reports, psychology
+from routers import auth, sessions, messages, settings as settings_router, audio, reports
 from core.config import get_settings
 from models.database import init_db
 
@@ -50,7 +50,7 @@ app.include_router(messages.router, prefix="/api/messages", tags=["chat-messages
 app.include_router(settings_router.router, prefix="/api/settings", tags=["user-settings"])
 app.include_router(audio.router, prefix="/api/audio", tags=["audio-processing"])
 app.include_router(reports.router, prefix="/api/reports", tags=["reports"])
-app.include_router(psychology.router, prefix="/api/psychology", tags=["psychology-interviews"])
+
 
 # Serve static files (React build)
 static_dir = Path(__file__).parent.parent / "client" / "dist"

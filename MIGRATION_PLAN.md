@@ -47,8 +47,8 @@ Converting the current Node.js/Express + React therapy chat application to a Pyt
    - DeepSeek-V3 integration
    - Fallback response system
 
-2. **Advanced Psychology Features**
-   - Structured therapy interview flow (25 questions)
+2. **Enhanced Therapy Features**
+   - Local LLM integration for privacy
    - Session progress tracking
    - Mood analysis and character response mapping
    - Report generation capabilities
@@ -65,7 +65,7 @@ Converting the current Node.js/Express + React therapy chat application to a Pyt
    - Type-safe request/response handling
 
 2. **New Features Integration**
-   - Interview progress tracking
+   - Session progress tracking
    - Report generation UI
    - Enhanced character mood system
 

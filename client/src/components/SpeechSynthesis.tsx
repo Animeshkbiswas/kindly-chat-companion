@@ -1,5 +1,6 @@
 import { useCallback, useRef, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
+import { apiService } from '@/lib/api';
 
 interface SpeechSynthesisHook {
   speak: (text: string, settings?: SpeechSettings) => void;
@@ -13,6 +14,7 @@ interface SpeechSettings {
   pitch?: number;
   language?: string;
   voiceEnabled?: boolean;
+  useBackend?: boolean;
 }
 
 export const useSpeechSynthesis = (): SpeechSynthesisHook => {
@@ -22,18 +24,44 @@ export const useSpeechSynthesis = (): SpeechSynthesisHook => {
   const isSupported = 'speechSynthesis' in window;
   const isSpeaking = isSupported && speechSynthesis.speaking;
 
-  const speak = useCallback((text: string, settings: SpeechSettings = {}) => {
+  const speak = useCallback(async (text: string, settings: SpeechSettings = {}) => {
+    // Check if voice is disabled
+    if (settings.voiceEnabled === false) {
+      return;
+    }
+
+    // Use backend TTS if specified
+    if (settings.useBackend) {
+      try {
+        const response = await apiService.textToSpeech({
+          text,
+          voice: 'sarah', // Default voice
+          speed: settings.rate ? settings.rate / 100 : 1.0,
+        });
+        
+        // Play the audio from the backend
+        const audio = new Audio(response.audio_url);
+        audio.play();
+        
+        return;
+      } catch (error) {
+        console.error('Backend TTS error:', error);
+        toast({
+          title: "TTS Error",
+          description: "Failed to generate speech from backend. Falling back to browser TTS.",
+          variant: "destructive"
+        });
+        // Fall back to browser TTS
+      }
+    }
+
+    // Use browser TTS
     if (!isSupported) {
       toast({
         title: "Speech Not Supported",
         description: "Your browser doesn't support text-to-speech.",
         variant: "destructive"
       });
-      return;
-    }
-
-    // Check if voice is disabled
-    if (settings.voiceEnabled === false) {
       return;
     }
 

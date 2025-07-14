@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     debug: bool = Field(default=True, description="Debug mode")
     
     # Database
-    database_url: str = Field(..., description="PostgreSQL database URL")
+    database_url: str = Field(default="sqlite+aiosqlite:///./therapy_chat.db", description="Database URL (SQLite by default)")
     
     # Security
     secret_key: str = Field(default="your-secret-key-change-in-production", description="JWT secret key")

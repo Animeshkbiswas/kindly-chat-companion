@@ -2,6 +2,8 @@ import React, { useState, useRef, useCallback } from 'react';
 import { Mic, MicOff, Square } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
+import { apiService } from '@/lib/api';
+import RecordRTC from 'recordrtc';
 
 interface EnhancedVoiceInputProps {
   onTranscript: (text: string) => void;
@@ -13,73 +15,56 @@ interface EnhancedVoiceInputProps {
   language?: string;
 }
 
-class WhisperSpeechRecognition {
-  private apiKey: string;
-  private mediaRecorder: MediaRecorder | null = null;
-  private audioChunks: Blob[] = [];
+// Replace BackendSpeechRecognition with RecordRTC-based implementation
+class BackendSpeechRecognition {
+  private recorder: any = null;
+  private stream: MediaStream | null = null;
   private onTranscriptionComplete: (text: string) => void;
   private onError: (error: string) => void;
+  private language: string;
 
-  constructor(apiKey: string, onTranscription: (text: string) => void, onError: (error: string) => void) {
-    this.apiKey = apiKey;
+  constructor(language: string, onTranscription: (text: string) => void, onError: (error: string) => void) {
+    this.language = language;
     this.onTranscriptionComplete = onTranscription;
     this.onError = onError;
   }
 
   async startRecording() {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      this.mediaRecorder = new MediaRecorder(stream);
-      this.audioChunks = [];
-
-      this.mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          this.audioChunks.push(event.data);
-        }
-      };
-
-      this.mediaRecorder.onstop = () => {
-        this.processAudio();
-      };
-
-      this.mediaRecorder.start();
+      this.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      this.recorder = new RecordRTC(this.stream, {
+        type: 'audio',
+        mimeType: 'audio/webm', // Changed from 'audio/wav' to 'audio/webm'
+      });
+      this.recorder.startRecording();
     } catch (error) {
       this.onError(`Error accessing microphone: ${error}`);
     }
   }
 
   stopRecording() {
-    if (this.mediaRecorder && this.mediaRecorder.state === 'recording') {
-      this.mediaRecorder.stop();
-      this.mediaRecorder.stream.getTracks().forEach(track => track.stop());
+    if (this.recorder) {
+      this.recorder.stopRecording(async () => {
+        const wavBlob = this.recorder.getBlob();
+        console.log('Recorded audio blob type:', wavBlob.type); // Log the blob type for debugging
+        if (this.stream) {
+          this.stream.getTracks().forEach(track => track.stop());
+        }
+        await this.processAudio(wavBlob);
+      });
     }
   }
 
-  private async processAudio() {
-    if (this.audioChunks.length === 0) {
+  private async processAudio(wavBlob: Blob) {
+    if (!wavBlob || wavBlob.size === 0) {
       this.onError('No audio data recorded');
       return;
     }
-
-    const audioBlob = new Blob(this.audioChunks, { type: 'audio/wav' });
-    const formData = new FormData();
-    formData.append('file', audioBlob, 'recording.wav');
-    formData.append('model', 'whisper-1');
-
     try {
-      const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${this.apiKey}`,
-        },
-        body: formData
+      const result = await apiService.transcribeAudio(wavBlob, {
+        language: this.language,
+        use_whisper: false, // Use local Vosk model
       });
-
-      if (!response.ok) {
-        throw new Error(`API error: ${response.status} ${response.statusText}`);
-      }
-
-      const result = await response.json();
       this.onTranscriptionComplete(result.text || '');
     } catch (error) {
       this.onError(`Error transcribing audio: ${error}`);
@@ -99,7 +84,7 @@ export const EnhancedVoiceInput: React.FC<EnhancedVoiceInputProps> = ({
   const [isListening, setIsListening] = useState(false);
   const [isSupported, setIsSupported] = useState(true);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
-  const whisperRef = useRef<WhisperSpeechRecognition | null>(null);
+  const backendRecognitionRef = useRef<BackendSpeechRecognition | null>(null);
   const { toast } = useToast();
 
   const showError = useCallback((message: string) => {
@@ -183,18 +168,18 @@ export const EnhancedVoiceInput: React.FC<EnhancedVoiceInputProps> = ({
   const startListening = useCallback(() => {
     if (disabled) return;
 
-    if (useWhisper && apiKey) {
-      // Use Whisper API
-      if (!whisperRef.current) {
-        whisperRef.current = new WhisperSpeechRecognition(
-          apiKey,
-          (text) => {
+    if (useWhisper) {
+      // Use Backend API for speech recognition
+      if (!backendRecognitionRef.current) {
+        backendRecognitionRef.current = new BackendSpeechRecognition(
+          language,
+          (text: string) => {
             onTranscript(text);
             setIsListening(false);
             onStopListening();
             document.dispatchEvent(new CustomEvent('userQuiet'));
           },
-          (error) => {
+          (error: string) => {
             showError(error);
             setIsListening(false);
             onStopListening();
@@ -203,7 +188,7 @@ export const EnhancedVoiceInput: React.FC<EnhancedVoiceInputProps> = ({
         );
       }
       
-      whisperRef.current.startRecording();
+      backendRecognitionRef.current.startRecording();
       setIsListening(true);
       onStartListening();
       document.dispatchEvent(new CustomEvent('userSpeaking', { 
@@ -228,8 +213,8 @@ export const EnhancedVoiceInput: React.FC<EnhancedVoiceInputProps> = ({
   }, [disabled, useWhisper, apiKey, onTranscript, onStartListening, onStopListening, initializeBrowserSpeechRecognition, isSupported, showError]);
 
   const stopListening = useCallback(() => {
-    if (useWhisper && whisperRef.current) {
-      whisperRef.current.stopRecording();
+    if (useWhisper && backendRecognitionRef.current) {
+      backendRecognitionRef.current.stopRecording();
     } else if (recognitionRef.current) {
       recognitionRef.current.stop();
     }
@@ -273,14 +258,14 @@ export const EnhancedVoiceInput: React.FC<EnhancedVoiceInputProps> = ({
         ) : (
           <>
             <Mic className="w-4 h-4 mr-1" />
-            {useWhisper ? 'Record (Whisper)' : 'Speak'}
+            {useWhisper ? 'Record (Backend)' : 'Speak'}
           </>
         )}
       </Button>
       
-      {useWhisper && !apiKey && (
-        <span className="text-xs text-amber-600">
-          Whisper requires API key
+      {useWhisper && (
+        <span className="text-xs text-blue-600">
+          Using backend transcription
         </span>
       )}
     </div>
